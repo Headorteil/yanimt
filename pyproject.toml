@@ -1,0 +1,65 @@
+[project]
+requires-python = ">=3.11"
+name = "yanimt"
+
+[tool.poetry]
+name = "yanimt"
+version = "0.0.1"
+description = ""
+authors = ["Headorteil"]
+readme = "README.md"
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+impacket = "^0.11.0"
+typer = "^0.12.3"
+dnspython = "^2.7.0"
+textual = "^0.83.0"
+sqlalchemy = "^2.0.36"
+
+[tool.poetry.scripts]
+yanimt = 'yanimt.cli:app'
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.6.4"
+pre-commit = "^4.0.1"
+textual-dev = "^1.6.1"
+types-pyyaml = "^6.0.12.20240917"
+types-ldap3 = "^2.9.13.20240205"
+pyright = "^1.1.389"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pyright]
+include = ["yanimt"]
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "strict"
+reportUnknownVariableType = false
+reportUnknownMemberType = false
+reportUnknownArgumentType = false
+
+[tool.ruff]
+src = ["yanimt"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "COM812",     # Conflicts with formatter
+  "ISC001",     # Conflicts with formatter
+  "D203",       # Conflicts with D211
+  "D213",       # Conflicts with D212
+
+  "D",          # Docstrings
+
+  "BLE001",     # Blind exceptions
+  "C901",       # Function too complex
+  "E501",       # Line too long
+  "FBT001",     # Boolean positional argument
+  "FBT002",     # Boolean positional argument
+  "FBT003",     # Boolean positional argument
+  "PLR09",      # Too many ...
+]

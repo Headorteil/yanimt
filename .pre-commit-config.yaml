@@ -1,0 +1,37 @@
+exclude: "^typings/"
+repos:
+  - repo: local
+    hooks:
+      - id: yanimt-custom-hook
+        name: Custom pre commit hook for this project
+        description: Run all required scripts before commiting
+        always_run: true
+        entry: hooks/yanimt-custom-hook.sh
+        pass_filenames: false
+        language: script
+        verbose: true
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+    - id: end-of-file-fixer
+    - id: trailing-whitespace
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.3
+    hooks:
+      - id: ruff
+        args: [ --fix ]
+      - id: ruff-format
+
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.389
+    hooks:
+    - id: pyright
+
+  - repo: https://github.com/python-poetry/poetry
+    rev: 1.8.0
+    hooks:
+      - id: poetry-check
+      - id: poetry-lock
+      - id: poetry-install
