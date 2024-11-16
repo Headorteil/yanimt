@@ -36,6 +36,8 @@ APP_PATH = Path(__file__).parent.parent
 TCSS_PATH = APP_PATH / "static" / "tcss"
 
 DEFAULT_DB_URI = f"sqlite:///{DEFAULT_TOOL_DIR}/database.sql"
+DEFAULT_LOG_DIR = DEFAULT_TOOL_DIR / "logs"
+DEFAULT_LOG_FILE = DEFAULT_LOG_DIR / "yanimt.log"
 
 OPSEC_LEVEL = 25
 

@@ -6,7 +6,12 @@ from typing import Any
 
 from yaml import safe_dump, safe_load
 
-from yanimt._util.consts import DEFAULT_DB_URI, DEFAULT_TOOL_DIR
+from yanimt._util.consts import (
+    DEFAULT_DB_URI,
+    DEFAULT_LOG_DIR,
+    DEFAULT_LOG_FILE,
+    DEFAULT_TOOL_DIR,
+)
 from yanimt._util.exceptions import HandledError
 from yanimt._util.types import AuthProto, DnsProto, LdapScheme
 
@@ -20,6 +25,7 @@ class AppConfig:
         self.__logger = logger
 
         self.db_uri = DEFAULT_DB_URI
+        self.log_file = DEFAULT_LOG_FILE
         self.username = None
         self.password = None
         self.domain = None
@@ -51,6 +57,8 @@ class AppConfig:
             if raw_config is not None:
                 if raw_config.get("db_uri"):
                     self.db_uri = raw_config["db_uri"]
+                if raw_config.get("log_file"):
+                    self.log_file = Path(raw_config["log_file"])
                 if raw_config.get("username"):
                     self.username = raw_config["username"]
                 if raw_config.get("password"):
@@ -87,6 +95,13 @@ class AppConfig:
                     except ValueError as e:
                         errmsg = "Invalid dns proto in config file"
                         raise HandledError(errmsg) from e
+
+        if self.log_file.parent == DEFAULT_LOG_DIR and not DEFAULT_LOG_DIR.is_dir():
+            self.__logger.info("Creating default logs dir -> %s", DEFAULT_LOG_DIR)
+            DEFAULT_LOG_DIR.mkdir()
+        if not DEFAULT_LOG_DIR.is_dir():
+            errmsg = "Log file is not default and its parent dir doesn't exist"
+            raise HandledError(errmsg)
 
         self.__logger.debug("Loaded config -> db_uri : %s", self.db_uri)
 

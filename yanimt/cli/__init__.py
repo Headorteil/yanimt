@@ -11,7 +11,8 @@ from rich.console import Console
 from yanimt._config import AppConfig
 from yanimt._tui import YanimtTui
 from yanimt._util.consts import DEFAULT_CONFIG_FILE
-from yanimt._util.logger import get_logger
+from yanimt._util.exceptions import HandledError
+from yanimt._util.logger import add_file_handler, get_logger
 from yanimt.cli.gather import app as gather_app
 
 app = typer.Typer(
@@ -106,9 +107,14 @@ def main(
     try:
         config = AppConfig(logger, config_path)
         config.init_config()
+    except HandledError as e:
+        logger.critical(e)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         logger.critical("Can't parse config file -> %s", e)
         raise typer.Exit(code=1) from e
+
+    add_file_handler(logger, config.log_file)
 
     if ctx.invoked_subcommand is None:
         tui = YanimtTui(config)

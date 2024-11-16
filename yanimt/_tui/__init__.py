@@ -17,7 +17,7 @@ from yanimt._tui.logger import get_tui_logger
 from yanimt._tui.progress import TitleProgress
 from yanimt._tui.users import UserTable
 from yanimt._util.consts import TCSS_PATH
-from yanimt._util.logger import get_null_logger
+from yanimt._util.logger import add_file_handler, get_null_logger
 from yanimt._util.types import Display
 from yanimt.gatherer import YanimtGatherer
 
@@ -61,6 +61,7 @@ class YanimtTui(App[Any]):
     def on_mount(self) -> None:
         """Set up tabs."""
         self.logger = get_tui_logger(self.get_widget_by_id("logs_table"))  # pyright: ignore [reportArgumentType]
+        add_file_handler(self.logger, self.config.log_file)
         self.get_widget_by_id("user_table").focus()
 
     async def action_quit(self) -> None:
