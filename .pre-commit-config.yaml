@@ -2,11 +2,41 @@ exclude: "^typings/"
 repos:
   - repo: local
     hooks:
-      - id: yanimt-custom-hook
-        name: Custom pre commit hook for this project
-        description: Run all required scripts before commiting
+      - id: create-stub
+        name: Create stub for impacket
+        files: "^poetry.lock$"
+        entry: hooks/create-stub.sh
+        pass_filenames: false
+        language: script
+        verbose: true
+
+  - repo: local
+    hooks:
+      - id: gen-docs
+        name: Custom documentation for the cli
+        files: "^yanimt/cli/"
+        types: [python]
+        entry: hooks/gen-docs.sh
+        pass_filenames: false
+        language: script
+        verbose: true
+
+  - repo: local
+    hooks:
+      - id: pre-commit-update
+        name: Update pre commit hooks
         always_run: true
-        entry: hooks/yanimt-custom-hook.sh
+        entry: hooks/pre-commit-update.sh
+        pass_filenames: false
+        language: script
+        verbose: true
+
+  - repo: local
+    hooks:
+      - id: poetry-up
+        name: Bump poetry requirements
+        always_run: true
+        entry: hooks/poetry-up.sh
         pass_filenames: false
         language: script
         verbose: true
@@ -18,7 +48,7 @@ repos:
     - id: trailing-whitespace
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.7.3
+    rev: v0.7.4
     hooks:
       - id: ruff
         args: [ --fix ]

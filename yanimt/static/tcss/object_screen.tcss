@@ -9,3 +9,43 @@ YanimtObjectScreen {
     border: thick $background 80%;
     background: $surface;
 }
+
+InitGatherScreen {
+    align: center middle;
+}
+
+InitGatherScreen VerticalScroll {
+    padding: 0 1;
+    max-width: 80%;
+    max-height: 80%;
+    border: thick $background 80%;
+}
+
+InitGatherScreen VerticalScroll RadioSet {
+    background: $background;
+}
+
+InitGatherScreen VerticalScroll Checkbox {
+    background: $background;
+}
+
+InitGatherScreen VerticalScroll .category {
+    width: 100%;
+    text-align: center;
+    text-style: bold underline;
+    margin: 1;
+    color: blue;
+}
+
+InitGatherScreen VerticalScroll .question {
+    width: 100%;
+    text-align: center;
+}
+
+InitGatherScreen VerticalScroll Button {
+    width: 100%;
+}
+
+InitGatherScreen VerticalScroll Input {
+    text-align: center;
+}

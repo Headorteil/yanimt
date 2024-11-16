@@ -9,7 +9,7 @@ from yanimt._database.manager import DatabaseManager
 from yanimt._util.consts import SMB_TIMEOUT
 from yanimt._util.exceptions import HandledError
 from yanimt._util.smart_class import ADAuthentication, DCValues
-from yanimt._util.types import Display, SmbState
+from yanimt._util.types import AuthProto, Display, SmbState
 
 
 class Smb:
@@ -53,7 +53,7 @@ class Smb:
         connection = SMBConnection(
             self.dc_values.host, self.dc_values.ip, timeout=SMB_TIMEOUT
         )
-        if self.ad_authentication.kerberos is True:
+        if self.ad_authentication.auth_proto is AuthProto.KERBEROS:
             self.display.logger.opsec(
                 "[SMB (KERBEROS) -> %s] Authenticate to SMB with Kerberos",
                 self.dc_values.ip,
@@ -73,7 +73,7 @@ class Smb:
             except Exception as e:
                 errmsg = f"Can't login to SMB : {e}"
                 raise HandledError(errmsg) from e
-        elif self.ad_authentication.kerberos is False:
+        elif self.ad_authentication.auth_proto is AuthProto.NTLM:
             self.display.logger.opsec(
                 "[SMB (NTLM) -> %s] Authenticate to SMB with NTLM", self.dc_values.ip
             )
@@ -89,7 +89,7 @@ class Smb:
                 errmsg = f"Can't login to SMB : {e}"
                 raise HandledError(errmsg) from e
         else:
-            self.ad_authentication.kerberos = False
+            self.ad_authentication.auth_proto = AuthProto.NTLM
             self.display.logger.opsec(
                 "[SMB (NTLM) -> %s] Authenticate to SMB with NTLM", self.dc_values.ip
             )
@@ -102,7 +102,7 @@ class Smb:
                     nthash=self.ad_authentication.nt_hash,
                 )
             except Exception:
-                self.ad_authentication.kerberos = True
+                self.ad_authentication.auth_proto = AuthProto.KERBEROS
                 self.display.logger.debug(
                     "Authenticate to SMB with NTLM failed, tying Kerberos"
                 )
@@ -133,7 +133,7 @@ class Smb:
 
         self.remote_ops = RemoteOperations(
             self.connection,
-            self.ad_authentication.kerberos,
+            self.ad_authentication.auth_proto is AuthProto.KERBEROS,
             self.dc_values.ip,
             None,
         )

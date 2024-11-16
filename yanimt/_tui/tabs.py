@@ -4,13 +4,11 @@ from textual.binding import BindingType
 from textual.screen import ModalScreen
 from textual.widgets import DataTable
 
-from yanimt._database.manager import DatabaseManager
-
 
 class YanimtTable(DataTable[Any]):
-    def __init__(self, database: DatabaseManager, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+    def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
         super().__init__(*args, **kwargs)
-        self.database = database
+        self.database = self.app.database  # pyright: ignore [reportAttributeAccessIssue]
         self.current_sorts = set()
         self.zebra_stripes = True
         self.fixed_columns = 1

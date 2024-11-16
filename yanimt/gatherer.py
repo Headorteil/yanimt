@@ -15,7 +15,7 @@ from yanimt._ldap.query import LdapQuery
 from yanimt._smb.secrets_dump import SecretsDump
 from yanimt._util.logger import YanimtLogger, get_null_logger
 from yanimt._util.smart_class import ADAuthentication, DCValues
-from yanimt._util.types import Display, DnsProto, LdapScheme
+from yanimt._util.types import AuthProto, Display, DnsProto, LdapScheme
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -37,12 +37,12 @@ class YanimtGatherer:
         domain: str | None = None,
         aes_key: str | None = None,
         ccache_path: Path | None = None,
-        kerberos: bool | None = None,
+        auth_proto: AuthProto = AuthProto.AUTO,
         dc_ip: str | None = None,
         dc_host: str | None = None,
-        ldap_scheme: LdapScheme | None = None,
+        ldap_scheme: LdapScheme = LdapScheme.AUTO,
         dns_ip: str | None = None,
-        dns_proto: DnsProto | None = None,
+        dns_proto: DnsProto = DnsProto.AUTO,
         hashes: str | None = None,
     ) -> None:
         """Init a Yanimt instance."""
@@ -64,7 +64,7 @@ class YanimtGatherer:
 
         self.__ad_authentication = ADAuthentication(
             self.__display,
-            kerberos,
+            auth_proto,
             username,
             password,
             hashes,

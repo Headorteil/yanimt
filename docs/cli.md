@@ -57,15 +57,15 @@ $ yanimt gather [OPTIONS] COMMAND [ARGS]...
 * `-p, --password TEXT`: Password to connect with
 * `-P, --ask-password`: Ask for a password
 * `-H, --hashes TEXT`: NTLM hashes, format is LMHASH:NTHASH
-* `-k, --kerberos / -K, --no-kerberos`: Use kerberos authentication. If ommited, it try with NTLM then with kerberos
+* `--auth-proto [kerberos|ntlm|auto]`: Use Kerberos or NTLM authentication. If auto, it try with NTLM then with kerberos  [default: auto]
 * `-a, --aes-key TEXT`: AES key to use for Kerberos Authentication (128 or 256 bits)
 * `-c, --ccache-path PATH`: Path of the ccache. If ommited and no other authentification method is supplied, it checks KRB5CCNAME env var
 * `-d, --domain TEXT`: Domain to query. If ommited, it checks --dc-ip, --dh-host or resolv.conf
 * `-i, --dc-ip TEXT`: IP address of the domain controller. If ommited it checks the --dc-host, --domain
 * `--dc-host TEXT`: Hostname of the domain controller. If ommited it checks the --dc-ip or --domain
-* `-l, --ldap-scheme [ldap|ldaps]`: Ldap scheme. If ommited, it try ldap then ldaps
+* `-l, --ldap-scheme [ldap|ldaps|auto]`: Ldap scheme. If auto, it try ldap then ldaps  [default: auto]
 * `-D, --dns-ip TEXT`: DNS IP. If ommited, it try with DC IP
-* `--dns-proto [tcp|udp]`: DNS protocol. If ommited, it try UDP tne TCP
+* `--dns-proto [tcp|udp|auto]`: DNS protocol. If auto, it try UDP tne TCP  [default: auto]
 * `--help`: Show this message and exit.
 
 **Commands**:

@@ -6,7 +6,7 @@ from rich.prompt import Prompt
 
 from yanimt._util import complete_path
 from yanimt._util.exceptions import HandledError
-from yanimt._util.types import DnsProto, LdapScheme
+from yanimt._util.types import AuthProto, DnsProto, LdapScheme
 from yanimt.gatherer import YanimtGatherer
 
 app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
@@ -54,16 +54,14 @@ def main(
             rich_help_panel="Authentication",
         ),
     ] = None,
-    kerberos: Annotated[
-        bool | None,
+    auth_proto: Annotated[
+        AuthProto,
         typer.Option(
-            "--kerberos/--no-kerberos",
-            "-k/-K",
-            show_default=False,
-            help="Use kerberos authentication. If ommited, it try with NTLM then with kerberos",
+            "--auth-proto",
+            help="Use Kerberos or NTLM authentication. If auto, it try with NTLM then with kerberos",
             rich_help_panel="Authentication",
         ),
-    ] = None,
+    ] = AuthProto.AUTO,
     aes_key: Annotated[
         str | None,
         typer.Option(
@@ -119,15 +117,14 @@ def main(
         ),
     ] = None,
     ldap_scheme: Annotated[
-        LdapScheme | None,
+        LdapScheme,
         typer.Option(
             "--ldap-scheme",
             "-l",
-            help="Ldap scheme. If ommited, it try ldap then ldaps",
-            show_default=False,
+            help="Ldap scheme. If auto, it try ldap then ldaps",
             rich_help_panel="Connection",
         ),
-    ] = None,
+    ] = LdapScheme.AUTO,
     dns_ip: Annotated[
         str | None,
         typer.Option(
@@ -139,17 +136,17 @@ def main(
         ),
     ] = None,
     dns_proto: Annotated[
-        DnsProto | None,
+        DnsProto,
         typer.Option(
             "--dns-proto",
-            help="DNS protocol. If ommited, it try UDP tne TCP",
-            show_default=False,
+            help="DNS protocol. If auto, it try UDP tne TCP",
             rich_help_panel="Connection",
         ),
-    ] = None,
+    ] = DnsProto.AUTO,
 ) -> None:
     """Gather all needed information from the Active Directory."""
     logger = ctx.obj.logger
+    config = ctx.obj.config
 
     if ctx.obj.debug:
         ctx.obj.no_stacktrace_exceptions = ()
@@ -166,6 +163,21 @@ def main(
             raise typer.Exit(code=1)
         password = Prompt.ask("Password", password=True)
 
+    config.merge_with_args(
+        username=username,
+        password=password,
+        domain=domain,
+        aes_key=aes_key,
+        ccache_path=ccache_path,
+        auth_proto=auth_proto,
+        dc_ip=dc_ip,
+        dc_host=dc_host,
+        ldap_scheme=ldap_scheme,
+        dns_ip=dns_ip,
+        dns_proto=dns_proto,
+        hashes=hashes,
+    )
+
     try:
         ctx.obj.gatherer = YanimtGatherer(
             ctx.obj.config,
@@ -174,18 +186,18 @@ def main(
             live=ctx.obj.live,
             logger=logger,
             debug=ctx.obj.debug,
-            username=username,
-            password=password,
-            domain=domain,
-            aes_key=aes_key,
-            ccache_path=ccache_path,
-            kerberos=kerberos,
-            dc_ip=dc_ip,
-            dc_host=dc_host,
-            ldap_scheme=ldap_scheme,
-            dns_ip=dns_ip,
-            dns_proto=dns_proto,
-            hashes=hashes,
+            username=config.username,
+            password=config.password,
+            domain=config.domain,
+            aes_key=config.aes_key,
+            ccache_path=config.ccache_path,
+            auth_proto=config.auth_proto,
+            dc_ip=config.dc_ip,
+            dc_host=config.dc_host,
+            ldap_scheme=config.ldap_scheme,
+            dns_ip=config.dns_ip,
+            dns_proto=config.dns_proto,
+            hashes=config.hashes,
         )
     except ctx.obj.no_stacktrace_exceptions as e:
         logger.critical(e)

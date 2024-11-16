@@ -20,7 +20,7 @@ class LdapQuery(Ldap):
         database: DatabaseManager,
         dc_values: DCValues,
         ad_authentication: ADAuthentication,
-        scheme: LdapScheme | None,
+        scheme: LdapScheme,
         domain_sid: str,
     ) -> None:
         super().__init__(display, database, dc_values, ad_authentication, scheme)
@@ -209,7 +209,7 @@ class LdapQuery(Ldap):
             self.__task = task
             self.display.logger.opsec(
                 "[%s -> %s] Querying base admin groups",
-                self.scheme.value.upper(),  # pyright: ignore [reportOptionalMemberAccess]
+                self.scheme.value.upper(),
                 self.dc_values.ip,
             )
             for sid in self.admin_groups:
@@ -233,7 +233,7 @@ class LdapQuery(Ldap):
             self.__progress = progress
             self.display.logger.opsec(
                 "[%s -> %s] Querying admin groups recursively",
-                self.scheme.value.upper(),  # pyright: ignore [reportOptionalMemberAccess]
+                self.scheme.value.upper(),
                 self.dc_values.ip,
             )
             for sid, group in self.admin_groups.items():
@@ -277,7 +277,7 @@ class LdapQuery(Ldap):
             self.__task = task
             self.display.logger.opsec(
                 "[%s -> %s] Querying ldap users",
-                self.scheme.value.upper(),  # pyright: ignore [reportOptionalMemberAccess]
+                self.scheme.value.upper(),
                 self.dc_values.ip,
             )
             self.connection.search(  # pyright: ignore [reportOptionalMemberAccess]
@@ -317,7 +317,7 @@ class LdapQuery(Ldap):
             self.__task = task
             self.display.logger.opsec(
                 "[%s -> %s] Querying ldap computers",
-                self.scheme.value.upper(),  # pyright: ignore [reportOptionalMemberAccess]
+                self.scheme.value.upper(),
                 self.dc_values.ip,
             )
             self.connection.search(  # pyright: ignore [reportOptionalMemberAccess]

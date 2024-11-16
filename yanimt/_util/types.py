@@ -42,14 +42,22 @@ class SmbState(Enum):
     REMOTEOPS = auto()
 
 
+class AuthProto(StrEnum):
+    KERBEROS = "kerberos"
+    NTLM = "ntlm"
+    AUTO = "auto"
+
+
 class LdapScheme(StrEnum):
     LDAP = "ldap"
     LDAPS = "ldaps"
+    AUTO = "auto"
 
 
 class DnsProto(StrEnum):
     TCP = "tcp"
     UDP = "udp"
+    AUTO = "auto"
 
 
 class LessPager(Pager):
@@ -103,7 +111,7 @@ class Display:
         else:
             obj.expand = True
             if too_large:
-                self.logger.warning(
+                self.console.print(
                     'Table too large, you should enable pager with "yanimt -p"'
                 )
             self.console.print(obj)

@@ -10,14 +10,14 @@ from impacket.smbconnection import SessionError, SMBConnection
 
 from yanimt._util.consts import SMB_TIMEOUT
 from yanimt._util.exceptions import HandledError, TimeOutError
-from yanimt._util.types import Display, DnsProto
+from yanimt._util.types import AuthProto, Display, DnsProto
 
 
 class ADAuthentication:
     def __init__(
         self,
         display: Display,
-        kerberos: bool | None,
+        auth_proto: AuthProto,
         username: str | None,
         password: str | None,
         hashes: str | None,
@@ -30,15 +30,15 @@ class ADAuthentication:
         len_provided_creds = sum(
             1 for i in (password, hashes, aes_key, ccache_path) if i is not None
         )
-        if kerberos is True:
-            self.kerberos = True
+        if auth_proto is AuthProto.KERBEROS:
+            self.auth_proto = AuthProto.KERBEROS
             if len_provided_creds > 1:
                 errmsg = "More than one secret was provided"
                 raise HandledError(errmsg)
             if len_provided_creds == 0:
                 use_ccache = True
-        elif kerberos is False:
-            self.kerberos = False
+        elif auth_proto is AuthProto.NTLM:
+            self.auth_proto = AuthProto.NTLM
             if len_provided_creds != 1:
                 errmsg = "You must provide one secret"
                 raise HandledError(errmsg)
@@ -53,12 +53,12 @@ class ADAuthentication:
                 errmsg = "More than one secret was provided"
                 raise HandledError(errmsg)
             if len_provided_creds == 0:
-                self.kerberos = True
+                self.auth_proto = AuthProto.KERBEROS
                 use_ccache = True
             elif (aes_key is not None) or (ccache_path is not None):
-                self.kerberos = True
+                self.auth_proto = AuthProto.KERBEROS
             else:
-                self.kerberos = None
+                self.auth_proto = AuthProto.AUTO
 
         self.username = username if username is not None else ""
         self.password = password if password is not None else ""
@@ -146,7 +146,7 @@ class DCValues:
         host: str | None,
         ip: str | None,
         dns_ip: str | None,
-        dns_proto: DnsProto | None,
+        dns_proto: DnsProto,
     ) -> None:
         self.__display = display
         self.dns_proto = dns_proto
@@ -254,7 +254,7 @@ class DCValues:
             self.domain,
             self.host,
             self.ip,
-            self.dns_proto.value if self.dns_proto is not None else None,
+            self.dns_proto.value,
             self.resolver.nameservers,
         )
 
@@ -285,7 +285,7 @@ class DCValues:
 
 
 def resolve_dns(
-    display: Display, resolver: Resolver, dns_proto: DnsProto | None, host: str
+    display: Display, resolver: Resolver, dns_proto: DnsProto, host: str
 ) -> tuple[DnsProto, Iterator[str]]:
     if dns_proto is DnsProto.UDP:
         display.logger.opsec(

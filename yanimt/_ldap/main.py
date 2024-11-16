@@ -5,7 +5,7 @@ from impacket.ldap import ldap  # pyright: ignore [reportAttributeAccessIssue]
 from yanimt._database.manager import DatabaseManager
 from yanimt._util.exceptions import HandledError
 from yanimt._util.smart_class import ADAuthentication, DCValues
-from yanimt._util.types import Display, LdapScheme
+from yanimt._util.types import AuthProto, Display, LdapScheme
 
 
 class Ldap:
@@ -15,7 +15,7 @@ class Ldap:
         database: DatabaseManager,
         dc_values: DCValues,
         ad_authentication: ADAuthentication,
-        scheme: LdapScheme | None,
+        scheme: LdapScheme,
     ) -> None:
         self.display = display
         self.database = database
@@ -37,12 +37,12 @@ class Ldap:
         if self.connection is None:
             errmsg = "Can't login before connecting"
             raise HandledError(errmsg)
-        if self.ad_authentication.kerberos is True:
+        if self.ad_authentication.auth_proto is AuthProto.KERBEROS:
             self.display.logger.opsec(
                 "[%s (KERBEROS) -> %s] Authenticate to %s with Kerberos",
-                self.scheme.value.upper(),  # pyright: ignore [reportOptionalMemberAccess]
+                self.scheme.value.upper(),
                 self.dc_values.ip,
-                self.scheme.value,  # pyright: ignore [reportOptionalMemberAccess]
+                self.scheme.value,
             )
             self.connection.kerberosLogin(
                 self.ad_authentication.username,
@@ -55,12 +55,12 @@ class Ldap:
                 TGT=self.ad_authentication.tgt,
                 useCache=False,
             )
-        elif self.ad_authentication.kerberos is False:
+        elif self.ad_authentication.auth_proto is AuthProto.NTLM:
             self.display.logger.opsec(
                 "[%s (NTLM) -> %s] Authenticate to %s with NTLM",
-                self.scheme.value.upper(),  # pyright: ignore [reportOptionalMemberAccess]
+                self.scheme.value.upper(),
                 self.dc_values.ip,
-                self.scheme.value,  # pyright: ignore [reportOptionalMemberAccess]
+                self.scheme.value,
             )
             self.connection.login(
                 user=self.ad_authentication.username,
@@ -70,12 +70,12 @@ class Ldap:
                 nthash=self.ad_authentication.nt_hash,
             )
         else:
-            self.ad_authentication.kerberos = False
+            self.ad_authentication.auth_proto = AuthProto.NTLM
             self.display.logger.opsec(
                 "[%s (NTLM) -> %s] Authenticate to %s with NTLM",
-                self.scheme.value.upper(),  # pyright: ignore [reportOptionalMemberAccess]
+                self.scheme.value.upper(),
                 self.dc_values.ip,
-                self.scheme.value,  # pyright: ignore [reportOptionalMemberAccess]
+                self.scheme.value,
             )
             try:
                 self.connection.login(
@@ -89,13 +89,14 @@ class Ldap:
                 if str(e).find("NTLMAuthNegotiate") >= 0:
                     self.display.logger.debug(
                         "Authenticate to %s with NTLM failed, tying Kerberos",
-                        self.scheme.value,  # pyright: ignore [reportOptionalMemberAccess]
+                        self.scheme.value,
                     )
+                    self.ad_authentication.auth_proto = AuthProto.KERBEROS
                     self.display.logger.opsec(
                         "[%s (KERBEROS) -> %s] Authenticate to %s with Kerberos",
-                        self.scheme.value.upper(),  # pyright: ignore [reportOptionalMemberAccess]
+                        self.scheme.value.upper(),
                         self.dc_values.ip,
-                        self.scheme.value,  # pyright: ignore [reportOptionalMemberAccess]
+                        self.scheme.value,
                     )
                     self.connection.kerberosLogin(
                         self.ad_authentication.username,
@@ -120,7 +121,7 @@ class Ldap:
                 self.display.logger.warning("Can't close ldap connection")
 
     def init_connect(self) -> None:
-        if self.scheme is not None:
+        if self.scheme is not LdapScheme.AUTO:
             self.connection = ldap.LDAPConnection(
                 f"{self.scheme}://{self.dc_values.host}",
                 self.dc_values.base_dn,
