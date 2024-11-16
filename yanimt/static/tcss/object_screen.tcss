@@ -2,6 +2,16 @@ YanimtObjectScreen {
     align: center middle;
 }
 
+#progress {
+    width: auto;
+}
+
+#header {
+    background: $panel;
+    color: $foreground;
+    dock: top;
+}
+
 #obj_widget {
     padding: 0 1;
     max-width: 80%;

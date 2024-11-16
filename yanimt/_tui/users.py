@@ -16,6 +16,10 @@ class UserTable(YanimtTable):
             ("last_logon_timestamp", "Last logon timestamp"),
         ):
             self.add_column(label, key=key)
+        self.render_users()
+
+    def render_users(self) -> None:
+        self.clear()
         for user in self.database.get_users():
             self.add_row(
                 user.sam_account_name,

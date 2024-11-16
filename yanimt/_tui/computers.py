@@ -12,6 +12,10 @@ class ComputerTable(YanimtTable):
             ("status", "Status"),
         ):
             self.add_column(label, key=key)
+        self.render_computers()
+
+    def render_computers(self) -> None:
+        self.clear()
         for computer in self.database.get_computers():
             self.add_row(
                 computer.fqdn,
