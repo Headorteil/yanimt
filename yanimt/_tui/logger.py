@@ -24,6 +24,7 @@ class TuiRichHandler(OpsecRichHandler):
             self.handleError(record)
         else:
             try:
+                log_renderable.expand = False  # pyright: ignore [reportAttributeAccessIssue]
                 self.log_widget.write(log_renderable)
             except Exception:
                 self.handleError(record)

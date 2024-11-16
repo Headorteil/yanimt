@@ -54,7 +54,7 @@ class YanimtTui(App[Any]):
         with TabbedContent("Users", "Computers", "Logs", id="tabs"):
             yield UserTable(id="user_table")
             yield ComputerTable(id="computer_table")
-            yield RichLog(id="logs_table")
+            yield RichLog(id="logs_table", min_width=1000)
 
     def on_mount(self) -> None:
         """Set up tabs."""
