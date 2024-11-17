@@ -198,59 +198,62 @@ class LdapQuery(Ldap):
                 )
 
     def __pull_admins(self) -> None:
-        task = None
+        task = self.display.progress.add_task(
+            "[blue]Querying ldap admin groups[/blue]", total=3
+        )
         try:
-            task = self.display.progress.add_task(
-                "[blue]Querying ldap admin groups[/blue]", total=3
-            )
-            self.display.logger.opsec(
-                "[%s -> %s] Querying base admin groups",
-                self.scheme.value.upper(),
-                self.dc_values.ip,
-            )
-            for sid in self.admin_groups:
-                search_filter = f"(objectSid={sid})"
-                self.connection.search(  # pyright: ignore [reportOptionalMemberAccess]
-                    searchFilter=search_filter,
-                    attributes=["distinguishedName", "objectSid"],
-                    searchControls=[self.sc],
-                    perRecordCallback=self.__process_group,
+            with self.display.progress:
+                self.display.logger.opsec(
+                    "[%s -> %s] Querying base admin groups",
+                    self.scheme.value.upper(),
+                    self.dc_values.ip,
                 )
+                for sid in self.admin_groups:
+                    search_filter = f"(objectSid={sid})"
+                    self.connection.search(  # pyright: ignore [reportOptionalMemberAccess]
+                        searchFilter=search_filter,
+                        attributes=["distinguishedName", "objectSid"],
+                        searchControls=[self.sc],
+                        perRecordCallback=self.__process_group,
+                    )
         finally:
-            if task is not None:
-                self.display.progress.remove_task(task)
+            self.display.progress.remove_task(task)
 
     def __pull_recursive_admins(self) -> None:
         main_task = self.display.progress.add_task(
             "[blue]Recurse ldap admin groups[/blue]", total=3
         )
-        with self.display.progress:
-            self.display.logger.opsec(
-                "[%s -> %s] Querying admin groups recursively",
-                self.scheme.value.upper(),
-                self.dc_values.ip,
-            )
-            for sid, group in self.admin_groups.items():
-                if "distinguishedName" not in group:
-                    self.display.logger.warning(
-                        "A default administrative group doesn't exist -> %s", sid
+        try:
+            with self.display.progress:
+                self.display.logger.opsec(
+                    "[%s -> %s] Querying admin groups recursively",
+                    self.scheme.value.upper(),
+                    self.dc_values.ip,
+                )
+                for sid, group in self.admin_groups.items():
+                    if "distinguishedName" not in group:
+                        self.display.logger.warning(
+                            "A default administrative group doesn't exist -> %s", sid
+                        )
+                    dn = group["distinguishedName"]
+                    self.__current_sid = sid
+                    encoded_dn = "".join(f"\\{i:02x}" for i in dn.encode("utf-8"))  # pyright: ignore [reportAttributeAccessIssue]
+                    search_filter = f"(&(memberOf:1.2.840.113556.1.4.1941:={encoded_dn})(objectCategory=user))"
+                    members_task = self.display.progress.add_task(
+                        f"[blue]Recurse ldap members for {dn}[/blue]", total=None
                     )
-                dn = group["distinguishedName"]
-                self.__current_sid = sid
-                encoded_dn = "".join(f"\\{i:02x}" for i in dn.encode("utf-8"))  # pyright: ignore [reportAttributeAccessIssue]
-                search_filter = f"(&(memberOf:1.2.840.113556.1.4.1941:={encoded_dn})(objectCategory=user))"
-                members_task = self.display.progress.add_task(
-                    f"[blue]Recurse ldap members for {dn}[/blue]", total=None
-                )
-                self.connection.search(  # pyright: ignore [reportOptionalMemberAccess]
-                    searchFilter=search_filter,
-                    attributes=["distinguishedName"],
-                    searchControls=[self.sc],
-                    perRecordCallback=self.__recurse_process_group,
-                )
-                self.display.progress.remove_task(members_task)
-                self.display.progress.advance(main_task)
-        self.display.progress.remove_task(main_task)
+                    try:
+                        self.connection.search(  # pyright: ignore [reportOptionalMemberAccess]
+                            searchFilter=search_filter,
+                            attributes=["distinguishedName"],
+                            searchControls=[self.sc],
+                            perRecordCallback=self.__recurse_process_group,
+                        )
+                    finally:
+                        self.display.progress.remove_task(members_task)
+                    self.display.progress.advance(main_task)
+        finally:
+            self.display.progress.remove_task(main_task)
 
     def pull_users(self) -> None:
         if self.connection is None:
@@ -263,30 +266,32 @@ class LdapQuery(Ldap):
             "[blue]Querying ldap users[/blue]",
             total=None,
         )
-        with self.display.progress:
-            self.display.logger.opsec(
-                "[%s -> %s] Querying ldap users",
-                self.scheme.value.upper(),
-                self.dc_values.ip,
-            )
-            self.connection.search(  # pyright: ignore [reportOptionalMemberAccess]
-                searchFilter=search_filter,
-                attributes=[
-                    "sAMAccountName",
-                    "pwdLastSet",
-                    "mail",
-                    "objectSid",
-                    "userAccountControl",
-                    "servicePrincipalName",
-                    "accountExpires",
-                    "memberOf",
-                    "lastLogonTimestamp",
-                    "distinguishedName",
-                ],
-                searchControls=[self.sc],
-                perRecordCallback=self.__process_user,
-            )
-        self.display.progress.remove_task(task)
+        try:
+            with self.display.progress:
+                self.display.logger.opsec(
+                    "[%s -> %s] Querying ldap users",
+                    self.scheme.value.upper(),
+                    self.dc_values.ip,
+                )
+                self.connection.search(  # pyright: ignore [reportOptionalMemberAccess]
+                    searchFilter=search_filter,
+                    attributes=[
+                        "sAMAccountName",
+                        "pwdLastSet",
+                        "mail",
+                        "objectSid",
+                        "userAccountControl",
+                        "servicePrincipalName",
+                        "accountExpires",
+                        "memberOf",
+                        "lastLogonTimestamp",
+                        "distinguishedName",
+                    ],
+                    searchControls=[self.sc],
+                    perRecordCallback=self.__process_user,
+                )
+        finally:
+            self.display.progress.remove_task(task)
         self.users = True
 
     def pull_computers(self) -> None:
@@ -298,21 +303,23 @@ class LdapQuery(Ldap):
             "[blue]Querying ldap computers[/blue]",
             total=None,
         )
-        with self.display.progress:
-            self.display.logger.opsec(
-                "[%s -> %s] Querying ldap computers",
-                self.scheme.value.upper(),
-                self.dc_values.ip,
-            )
-            self.connection.search(  # pyright: ignore [reportOptionalMemberAccess]
-                searchFilter=search_filter,
-                attributes=[
-                    "dNSHostName",
-                ],
-                searchControls=[self.sc],
-                perRecordCallback=self.__process_computer,
-            )
-        self.display.progress.remove_task(task)
+        try:
+            with self.display.progress:
+                self.display.logger.opsec(
+                    "[%s -> %s] Querying ldap computers",
+                    self.scheme.value.upper(),
+                    self.dc_values.ip,
+                )
+                self.connection.search(  # pyright: ignore [reportOptionalMemberAccess]
+                    searchFilter=search_filter,
+                    attributes=[
+                        "dNSHostName",
+                    ],
+                    searchControls=[self.sc],
+                    perRecordCallback=self.__process_computer,
+                )
+        finally:
+            self.display.progress.remove_task(task)
         self.computers = True
 
     def get_users(self) -> Generator[User]:

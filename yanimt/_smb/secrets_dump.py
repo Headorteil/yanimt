@@ -105,11 +105,15 @@ class SecretsDump(Smb):
             perSecretCallback=self.__process_hash,
         )
         task = self.display.progress.add_task("[blue]Dumping Hashes[/blue]", total=None)
-        with self.display.progress:
-            self.display.logger.opsec("[SMB -> %s] Dumping Hashes", self.dc_values.ip)
-            self.ntds_hashes.dump()
-            self.display.logger.info("Found %s users", len(self.users))
-        self.display.progress.remove_task(task)
+        try:
+            with self.display.progress:
+                self.display.logger.opsec(
+                    "[SMB -> %s] Dumping Hashes", self.dc_values.ip
+                )
+                self.ntds_hashes.dump()
+                self.display.logger.info("Found %s users", len(self.users))
+        finally:
+            self.display.progress.remove_task(task)
 
     def get_secrets(self) -> dict[str, User]:
         if self.users is None:
