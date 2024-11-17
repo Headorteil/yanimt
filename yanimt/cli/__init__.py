@@ -71,6 +71,7 @@ def main(
         bool,
         typer.Option(
             "--display/--no-display",
+            " /-D",
             help="Display things that are not logs nor live like tables",
         ),
     ] = True,
@@ -102,7 +103,6 @@ def main(
         verbosity = 3
 
     logger = get_logger(console, verbosity, debug)
-    display_console = console if display else None
 
     try:
         config = AppConfig(logger, config_path)
@@ -122,7 +122,8 @@ def main(
         raise typer.Exit
 
     ctx.obj = SimpleNamespace(
-        console=display_console,
+        console=console,
+        display=display,
         logger=logger,
         pager=pager,
         live=live,

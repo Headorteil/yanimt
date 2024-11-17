@@ -4,12 +4,10 @@ from typing import Self
 from impacket.examples.secretsdump import (  # pyright: ignore [reportMissingTypeStubs]
     NTDSHashes,
 )
-from rich.progress import Progress
 
 from yanimt._database.manager import DatabaseManager
 from yanimt._database.models import User
 from yanimt._smb.main import Smb
-from yanimt._util.consts import PROGRESS_WIDGETS
 from yanimt._util.smart_class import ADAuthentication, DCValues
 from yanimt._util.types import Display, SmbState
 
@@ -27,8 +25,6 @@ class SecretsDump(Smb):
         )
 
         self.ntds_hashes = None
-        self.progress = None
-        self.task = None
         self.users = None
 
     def __enter__(self) -> Self:
@@ -52,7 +48,7 @@ class SecretsDump(Smb):
             user.lm_hash = splited_secret[-5]
 
             self.users[user.sid] = self.database.put_user(user)  # pyright: ignore [reportOptionalSubscript]
-            self.progress.advance(self.task)  # pyright: ignore [reportOptionalMemberAccess, reportArgumentType]
+            self.display.progress.advance(self.display.progress.task_ids[0])
         except Exception as e:
             if self.display.debug:
                 self.display.logger.exception(
@@ -108,17 +104,12 @@ class SecretsDump(Smb):
             printUserStatus=False,
             perSecretCallback=self.__process_hash,
         )
-        with Progress(
-            *PROGRESS_WIDGETS,
-            transient=True,
-            console=self.display.live_console,
-        ) as progress:
-            task = progress.add_task("[blue]Dumping Hashes[/blue]", total=None)
-            self.progress = progress
-            self.task = task
+        task = self.display.progress.add_task("[blue]Dumping Hashes[/blue]", total=None)
+        with self.display.progress:
             self.display.logger.opsec("[SMB -> %s] Dumping Hashes", self.dc_values.ip)
             self.ntds_hashes.dump()
             self.display.logger.info("Found %s users", len(self.users))
+        self.display.progress.remove_task(task)
 
     def get_secrets(self) -> dict[str, User]:
         if self.users is None:

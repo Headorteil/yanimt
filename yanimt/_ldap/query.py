@@ -2,13 +2,12 @@ from collections.abc import Generator
 
 from impacket.ldap import ldap, ldapasn1  # pyright: ignore[reportAttributeAccessIssue]
 from ldap3.protocol.formatters.formatters import format_sid
-from rich.progress import Progress
 
 from yanimt._database.manager import DatabaseManager
 from yanimt._database.models import Computer, User
 from yanimt._ldap.main import Ldap
 from yanimt._util import parse_uac, parse_windows_time
-from yanimt._util.consts import ADMIN_GROUPS_SIDS, PROGRESS_WIDGETS
+from yanimt._util.consts import ADMIN_GROUPS_SIDS
 from yanimt._util.smart_class import ADAuthentication, DCValues
 from yanimt._util.types import Display, LdapScheme
 
@@ -56,7 +55,7 @@ class LdapQuery(Ldap):
                 self.admin_groups[group_dict["objectSid"]]["distinguishedName"] = (
                     group_dict["distinguishedName"]
                 )
-            self.__progress.advance(self.__task)
+            self.display.progress.advance(self.display.progress.task_ids[0])
         except Exception as e:
             if self.display.debug:
                 self.display.logger.exception(
@@ -81,7 +80,7 @@ class LdapQuery(Ldap):
                 self.admin_groups[self.__current_sid]["recurseMember"].add(
                     group_dict["distinguishedName"]
                 )
-            self.__progress.advance(self.__task)
+            self.display.progress.advance(self.display.progress.task_ids[1])
         except Exception as e:
             if self.display.debug:
                 self.display.logger.exception(
@@ -160,7 +159,7 @@ class LdapQuery(Ldap):
 
             self.database.put_user(user)
 
-            self.__progress.advance(self.__task)
+            self.display.progress.advance(self.display.progress.task_ids[0])
         except Exception as e:
             if self.display.debug:
                 self.display.logger.exception(
@@ -187,7 +186,7 @@ class LdapQuery(Ldap):
 
             self.database.put_computer(computer)
 
-            self.__progress.advance(self.__task)
+            self.display.progress.advance(self.display.progress.task_ids[0])
         except Exception as e:
             if self.display.debug:
                 self.display.logger.exception(
@@ -199,14 +198,11 @@ class LdapQuery(Ldap):
                 )
 
     def __pull_admins(self) -> None:
-        with Progress(
-            *PROGRESS_WIDGETS,
-            transient=True,
-            console=self.display.live_console,
-        ) as progress:
-            task = progress.add_task("[blue]Querying ldap admin groups[/blue]", total=3)
-            self.__progress = progress
-            self.__task = task
+        task = None
+        try:
+            task = self.display.progress.add_task(
+                "[blue]Querying ldap admin groups[/blue]", total=3
+            )
             self.display.logger.opsec(
                 "[%s -> %s] Querying base admin groups",
                 self.scheme.value.upper(),
@@ -220,17 +216,15 @@ class LdapQuery(Ldap):
                     searchControls=[self.sc],
                     perRecordCallback=self.__process_group,
                 )
+        finally:
+            if task is not None:
+                self.display.progress.remove_task(task)
 
     def __pull_recursive_admins(self) -> None:
-        with Progress(
-            *PROGRESS_WIDGETS,
-            transient=True,
-            console=self.display.live_console,
-        ) as progress:
-            main_task = progress.add_task(
-                "[blue]Recurse ldap admin groups[/blue]", total=3
-            )
-            self.__progress = progress
+        main_task = self.display.progress.add_task(
+            "[blue]Recurse ldap admin groups[/blue]", total=3
+        )
+        with self.display.progress:
             self.display.logger.opsec(
                 "[%s -> %s] Querying admin groups recursively",
                 self.scheme.value.upper(),
@@ -242,20 +236,21 @@ class LdapQuery(Ldap):
                         "A default administrative group doesn't exist -> %s", sid
                     )
                 dn = group["distinguishedName"]
-                self.__task = progress.add_task(
-                    f"[blue]Recurse ldap members for {dn}[/blue]", total=None
-                )
                 self.__current_sid = sid
                 encoded_dn = "".join(f"\\{i:02x}" for i in dn.encode("utf-8"))  # pyright: ignore [reportAttributeAccessIssue]
                 search_filter = f"(&(memberOf:1.2.840.113556.1.4.1941:={encoded_dn})(objectCategory=user))"
+                members_task = self.display.progress.add_task(
+                    f"[blue]Recurse ldap members for {dn}[/blue]", total=None
+                )
                 self.connection.search(  # pyright: ignore [reportOptionalMemberAccess]
                     searchFilter=search_filter,
                     attributes=["distinguishedName"],
                     searchControls=[self.sc],
                     perRecordCallback=self.__recurse_process_group,
                 )
-                progress.remove_task(self.__task)
-                progress.advance(main_task)
+                self.display.progress.remove_task(members_task)
+                self.display.progress.advance(main_task)
+        self.display.progress.remove_task(main_task)
 
     def pull_users(self) -> None:
         if self.connection is None:
@@ -264,17 +259,11 @@ class LdapQuery(Ldap):
         self.__pull_admins()
         self.__pull_recursive_admins()
         search_filter = "(&(objectCategory=person)(objectClass=user))"
-        with Progress(
-            *PROGRESS_WIDGETS,
-            transient=True,
-            console=self.display.live_console,
-        ) as progress:
-            task = progress.add_task(
-                "[blue]Querying ldap users[/blue]",
-                total=None,
-            )
-            self.__progress = progress
-            self.__task = task
+        task = self.display.progress.add_task(
+            "[blue]Querying ldap users[/blue]",
+            total=None,
+        )
+        with self.display.progress:
             self.display.logger.opsec(
                 "[%s -> %s] Querying ldap users",
                 self.scheme.value.upper(),
@@ -297,6 +286,7 @@ class LdapQuery(Ldap):
                 searchControls=[self.sc],
                 perRecordCallback=self.__process_user,
             )
+        self.display.progress.remove_task(task)
         self.users = True
 
     def pull_computers(self) -> None:
@@ -304,17 +294,11 @@ class LdapQuery(Ldap):
             self.init_connect()
 
         search_filter = "(objectCategory=Computer)"
-        with Progress(
-            *PROGRESS_WIDGETS,
-            transient=True,
-            console=self.display.live_console,
-        ) as progress:
-            task = progress.add_task(
-                "[blue]Querying ldap computers[/blue]",
-                total=None,
-            )
-            self.__progress = progress
-            self.__task = task
+        task = self.display.progress.add_task(
+            "[blue]Querying ldap computers[/blue]",
+            total=None,
+        )
+        with self.display.progress:
             self.display.logger.opsec(
                 "[%s -> %s] Querying ldap computers",
                 self.scheme.value.upper(),
@@ -328,6 +312,7 @@ class LdapQuery(Ldap):
                 searchControls=[self.sc],
                 perRecordCallback=self.__process_computer,
             )
+        self.display.progress.remove_task(task)
         self.computers = True
 
     def get_users(self) -> Generator[User]:

@@ -2,10 +2,11 @@ from collections.abc import Iterable
 from typing import Any, ClassVar
 
 from rich.console import Console
+from rich.progress import Progress
 from textual import work
 from textual.app import App, ComposeResult, SystemCommand
 from textual.binding import BindingType
-from textual.containers import Center, VerticalScroll
+from textual.containers import Center, Container, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Footer, RichLog, TabbedContent
 
@@ -14,7 +15,7 @@ from yanimt._database.manager import DatabaseManager
 from yanimt._tui.computers import ComputerTable
 from yanimt._tui.gather import InitGatherScreen
 from yanimt._tui.logger import get_tui_logger
-from yanimt._tui.progress import TitleProgress
+from yanimt._tui.progress import FooterProgress, TitleProgress
 from yanimt._tui.users import UserTable
 from yanimt._util.consts import TCSS_PATH
 from yanimt._util.logger import add_file_handler, get_null_logger
@@ -34,7 +35,14 @@ class YanimtTui(App[Any]):
 
         null_logger = get_null_logger()
         null_console = Console(quiet=True)
-        self.display_ = Display(null_logger, null_console, False, null_console, False)
+        self.display_ = Display(
+            null_logger,
+            null_console,
+            False,
+            False,
+            Progress("", console=null_console),
+            False,
+        )
 
         self.database = DatabaseManager(self.display_, self.config.db_uri)
         self.gatherer = None
@@ -52,11 +60,15 @@ class YanimtTui(App[Any]):
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         yield Footer(id="footer")
-        yield Center(TitleProgress(id="progress"), id="header")
-        with TabbedContent("Users", "Computers", "Logs", id="tabs"):
-            yield VerticalScroll(UserTable(id="user_table"))
-            yield VerticalScroll(ComputerTable(id="computer_table"))
-            yield RichLog(id="logs_table", min_width=1000)
+        yield Center(TitleProgress(id="main_progress"), id="main_progress_center")
+        with Container():
+            yield Center(
+                FooterProgress(id="modules_progress"), id="modules_progress_center"
+            )
+            with TabbedContent("Users", "Computers", "Logs", id="tabs"):
+                yield VerticalScroll(UserTable(id="user_table"))
+                yield VerticalScroll(ComputerTable(id="computer_table"))
+                yield RichLog(id="logs_table", min_width=1000)
 
     def on_mount(self) -> None:
         """Set up tabs."""
@@ -92,6 +104,7 @@ class YanimtTui(App[Any]):
                     ldap_scheme=config.ldap_scheme,
                     dns_ip=config.dns_ip,
                     dns_proto=config.dns_proto,
+                    progress=self.get_widget_by_id("modules_progress").progress,  # pyright: ignore [reportAttributeAccessIssue]
                 )
             except Exception:
                 self.logger.exception("Unhandled exception")  # pyright: ignore [reportOptionalMemberAccess]
@@ -101,7 +114,7 @@ class YanimtTui(App[Any]):
 
     @work(exclusive=True, thread=True)
     def gather_all(self) -> None:
-        self.get_widget_by_id("progress").start_task("Gather all data")  # pyright: ignore [reportAttributeAccessIssue]
+        self.get_widget_by_id("main_progress").start_task("Gather all data")  # pyright: ignore [reportAttributeAccessIssue]
         try:
             self.logger.debug("Gathering everything")  # pyright: ignore [reportOptionalMemberAccess]
             self.gatherer.all_()  # pyright: ignore [reportOptionalMemberAccess]
@@ -114,7 +127,9 @@ class YanimtTui(App[Any]):
                 title="Success",
                 severity="information",
             )
-            self.get_widget_by_id("user_table").render_users()  # pyright: ignore [reportAttributeAccessIssue]
-            self.get_widget_by_id("computer_table").render_computers()  # pyright: ignore [reportAttributeAccessIssue]
+            self.call_from_thread(self.get_widget_by_id("user_table").render_users)  # pyright: ignore [reportAttributeAccessIssue]
+            self.call_from_thread(
+                self.get_widget_by_id("computer_table").render_computers  # pyright: ignore [reportAttributeAccessIssue]
+            )
         finally:
-            self.get_widget_by_id("progress").stop_task()  # pyright: ignore [reportAttributeAccessIssue]
+            self.get_widget_by_id("main_progress").stop_task()  # pyright: ignore [reportAttributeAccessIssue]

@@ -4,6 +4,7 @@ from typing import Any
 
 from rich.console import Console
 from rich.pager import Pager
+from rich.progress import Progress
 
 from yanimt._util.logger import YanimtLogger
 
@@ -73,17 +74,21 @@ class Display:
         self,
         logger: YanimtLogger,
         console: Console,
+        display: bool,
         pager: bool,
-        live_console: Console,
+        progress: Progress,
         debug: bool,
     ) -> None:
         self.pager = pager
         self.logger = logger
         self.console = console
-        self.live_console = live_console
+        self.display = display
+        self.progress = progress
         self.debug = debug
 
     def print_page(self, obj: Any) -> None:  # noqa: ANN401
+        if not self.display:
+            return
         extra_width = obj._extra_width  # noqa: SLF001
         max_width = sum(
             obj._calculate_column_widths(  # noqa: SLF001

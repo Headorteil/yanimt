@@ -13,7 +13,7 @@ $ yanimt [OPTIONS] COMMAND [ARGS]...
 * `-V, --version`: Print the tool version
 * `-c, --config PATH`: Config path  [default: /home/headorteil/.yanimt/config.yml]
 * `-v, --verbosity-level INTEGER RANGE`: Change the logs verbosity  [default: 2; 0<=x<=3]
-* `--display / --no-display`: Display things that are not logs nor live like tables  [default: display]
+* `--display / -D, --no-display`: Display things that are not logs nor live like tables  [default: display]
 * `-p, --pager / -P, --no-pager`: Display things that are not logs nor live like tables in less  [default: no-pager]
 * `-l, --live / -L, --no-live`: Display live objects like progress bars  [default: live]
 * `-d, --debug`: Use max verbosity and print file infos with logs

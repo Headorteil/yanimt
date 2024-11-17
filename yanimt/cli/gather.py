@@ -182,6 +182,7 @@ def main(
         ctx.obj.gatherer = YanimtGatherer(
             ctx.obj.config,
             console=ctx.obj.console,
+            display=ctx.obj.display,
             pager=ctx.obj.pager,
             live=ctx.obj.live,
             logger=logger,

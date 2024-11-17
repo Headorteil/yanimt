@@ -2,14 +2,24 @@ YanimtObjectScreen {
     align: center middle;
 }
 
-#progress {
+#main_progress {
     width: auto;
 }
 
-#header {
+#main_progress_center {
     background: $panel;
     color: $foreground;
     dock: top;
+}
+
+#modules_progress {
+    width: auto;
+}
+
+#modules_progress_center {
+    background: $panel 50%;
+    color: $foreground 50%;
+    dock: bottom;
 }
 
 #obj_widget {

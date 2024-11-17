@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Concatenate, ParamSpec, TypeVar
 
 from rich.console import Console
+from rich.progress import Progress
 
 from yanimt._config import AppConfig
 from yanimt._database.manager import DatabaseManager
@@ -13,6 +14,7 @@ from yanimt._database.models import Computer, ComputerStatus, Domain, User
 from yanimt._dns.main import resolve_dns
 from yanimt._ldap.query import LdapQuery
 from yanimt._smb.secrets_dump import SecretsDump
+from yanimt._util.consts import PROGRESS_WIDGETS
 from yanimt._util.logger import YanimtLogger, get_null_logger
 from yanimt._util.smart_class import ADAuthentication, DCValues
 from yanimt._util.types import AuthProto, Display, DnsProto, LdapScheme
@@ -28,6 +30,7 @@ class YanimtGatherer:
         self,
         config: AppConfig,
         console: Console | None = None,
+        display: bool = True,
         live: bool = True,
         pager: bool = False,
         logger: YanimtLogger | None = None,
@@ -44,6 +47,7 @@ class YanimtGatherer:
         dns_ip: str | None = None,
         dns_proto: DnsProto = DnsProto.AUTO,
         hashes: str | None = None,
+        progress: Progress | None = None,
     ) -> None:
         """Init a Yanimt instance."""
         self.__config = config
@@ -56,8 +60,12 @@ class YanimtGatherer:
         else:
             display_console = console
             display_live_console = display_console if live else Console(quiet=True)
+        if progress is None:
+            progress = Progress(
+                *PROGRESS_WIDGETS, transient=True, console=display_live_console
+            )
         self.__display = Display(
-            display_logger, display_console, pager, display_live_console, debug
+            display_logger, display_console, display, pager, progress, debug
         )
 
         self.__database = DatabaseManager(self.__display, self.__config.db_uri)
