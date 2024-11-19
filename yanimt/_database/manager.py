@@ -17,6 +17,9 @@ class DatabaseManager:
         Base.metadata.create_all(bind=self.engine)
         self.session_maker = sessionmaker(self.engine, expire_on_commit=False)
 
+    def clear(self) -> None:
+        Base.metadata.drop_all(bind=self.engine)
+
     def put_user(self, user: User) -> None:
         with self.session_maker.begin() as session:
             return session.merge(user)
@@ -32,6 +35,10 @@ class DatabaseManager:
     def put_domain(self, domain: Domain) -> None:
         with self.session_maker.begin() as session:
             return session.merge(domain)
+
+    def get_domain(self) -> Domain:
+        with self.session_maker.begin() as session:
+            return session.query(Domain).one_or_none()
 
     def put_computer(self, computer: Computer) -> None:
         with self.session_maker.begin() as session:

@@ -4,8 +4,7 @@ from typing import Annotated
 import typer
 from rich.prompt import Prompt
 
-from yanimt._util import complete_path
-from yanimt._util.exceptions import HandledError
+from yanimt._util import complete_path, log_exceptions_decorator
 from yanimt._util.types import AuthProto, DnsProto, LdapScheme
 from yanimt.gatherer import YanimtGatherer
 
@@ -148,13 +147,6 @@ def main(
     logger = ctx.obj.logger
     config = ctx.obj.config
 
-    if ctx.obj.debug:
-        ctx.obj.no_stacktrace_exceptions = ()
-        ctx.obj.stacktrace_exceptions = BaseException
-    else:
-        ctx.obj.no_stacktrace_exceptions = HandledError
-        ctx.obj.stacktrace_exceptions = Exception
-
     if ask_password:
         if password is not None:
             logger.critical(
@@ -163,7 +155,9 @@ def main(
             raise typer.Exit(code=1)
         password = Prompt.ask("Password", password=True)
 
-    config.merge_with_args(
+    log_exceptions_decorator(
+        config.merge_with_args,
+        ctx,
         username=username,
         password=password,
         domain=domain,
@@ -178,45 +172,61 @@ def main(
         hashes=hashes,
     )
 
-    try:
-        ctx.obj.gatherer = YanimtGatherer(
-            ctx.obj.config,
-            console=ctx.obj.console,
-            display=ctx.obj.display,
-            pager=ctx.obj.pager,
-            live=ctx.obj.live,
-            logger=logger,
-            debug=ctx.obj.debug,
-            username=config.username,
-            password=config.password,
-            domain=config.domain,
-            aes_key=config.aes_key,
-            ccache_path=config.ccache_path,
-            auth_proto=config.auth_proto,
-            dc_ip=config.dc_ip,
-            dc_host=config.dc_host,
-            ldap_scheme=config.ldap_scheme,
-            dns_ip=config.dns_ip,
-            dns_proto=config.dns_proto,
-            hashes=config.hashes,
-        )
-    except ctx.obj.no_stacktrace_exceptions as e:
-        logger.critical(e)
-        raise typer.Exit(code=1) from e
-    except ctx.obj.stacktrace_exceptions as e:
-        logger.exception("Unhandled error")
-        raise typer.Exit(code=2) from e
+    ctx.obj.gatherer = log_exceptions_decorator(
+        YanimtGatherer,
+        ctx,
+        ctx.obj.config,
+        console=ctx.obj.console,
+        display=ctx.obj.display,
+        pager=ctx.obj.pager,
+        live=ctx.obj.live,
+        logger=logger,
+        debug=ctx.obj.debug,
+        username=config.username,
+        password=config.password,
+        domain=config.domain,
+        aes_key=config.aes_key,
+        ccache_path=config.ccache_path,
+        auth_proto=config.auth_proto,
+        dc_ip=config.dc_ip,
+        dc_host=config.dc_host,
+        ldap_scheme=config.ldap_scheme,
+        dns_ip=config.dns_ip,
+        dns_proto=config.dns_proto,
+        hashes=config.hashes,
+    )
+
+
+@app.command("domain-sid", help="Gather the domain sid")
+def domain_sid(ctx: typer.Context) -> None:
+    log_exceptions_decorator(ctx.obj.gatherer.gather_domain_sid, ctx)
+
+
+@app.command("secrets", help="Gather secrets")
+def secrets(ctx: typer.Context) -> None:
+    log_exceptions_decorator(ctx.obj.gatherer.gather_secrets, ctx)
+
+
+@app.command("users", help="Gather users")
+def users(ctx: typer.Context) -> None:
+    log_exceptions_decorator(ctx.obj.gatherer.gather_users, ctx)
+
+
+@app.command("computers", help="Gather computers")
+def computers(
+    ctx: typer.Context,
+    resolve: Annotated[
+        bool,
+        typer.Option(
+            "--resolve/--no-resolve",
+            "-r/-R",
+            help="Resolve the DNS name of the machines",
+        ),
+    ] = True,
+) -> None:
+    log_exceptions_decorator(ctx.obj.gatherer.gather_computers, ctx, resolve=resolve)
 
 
 @app.command("all", help="Gather all required data from AD")
 def all_(ctx: typer.Context) -> None:
-    logger = ctx.obj.logger
-
-    try:
-        ctx.obj.gatherer.all_()
-    except ctx.obj.no_stacktrace_exceptions as e:
-        logger.critical(e)
-        raise typer.Exit(code=1) from e
-    except ctx.obj.stacktrace_exceptions as e:
-        logger.exception("Unhandled error")
-        raise typer.Exit(code=2) from e
+    log_exceptions_decorator(ctx.obj.gatherer.gather_all, ctx)

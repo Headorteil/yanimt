@@ -6,7 +6,8 @@ from rich.console import Console
 from rich.pager import Pager
 from rich.progress import Progress
 
-from yanimt._util.logger import YanimtLogger
+from yanimt._util.consts import PROGRESS_WIDGETS
+from yanimt._util.logger import YanimtLogger, get_null_logger
 
 
 @unique
@@ -72,19 +73,47 @@ class LessPager(Pager):
 class Display:
     def __init__(
         self,
-        logger: YanimtLogger,
-        console: Console,
+        logger: YanimtLogger | None,
+        console: Console | None,
         display: bool,
         pager: bool,
-        progress: Progress,
+        progress: Progress | None,
         debug: bool,
+        live: bool,
     ) -> None:
-        self.pager = pager
-        self.logger = logger
-        self.console = console
+        display_logger = get_null_logger() if logger is None else logger
+        if console is None:
+            display_console = Console(quiet=True)
+            display_live_console = display_console
+        else:
+            display_console = console
+            display_live_console = display_console if live else Console(quiet=True)
+        if progress is None:
+            progress = Progress(
+                *PROGRESS_WIDGETS, transient=True, console=display_live_console
+            )
+
+        self.logger = display_logger
+        self.console = display_console
         self.display = display
+        self.pager = pager
         self.progress = progress
         self.debug = debug
+        self.live = live
+
+    @staticmethod
+    def get_null() -> "Display":
+        null_logger = get_null_logger()
+        null_console = Console(quiet=True)
+        return Display(
+            null_logger,
+            null_console,
+            False,
+            False,
+            Progress("", console=null_console),
+            False,
+            False,
+        )
 
     def print_page(self, obj: Any) -> None:  # noqa: ANN401
         if not self.display:

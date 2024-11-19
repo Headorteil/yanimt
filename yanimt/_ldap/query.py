@@ -1,5 +1,3 @@
-from collections.abc import Generator
-
 from impacket.ldap import ldap, ldapasn1  # pyright: ignore[reportAttributeAccessIssue]
 from ldap3.protocol.formatters.formatters import format_sid
 
@@ -29,8 +27,8 @@ class LdapQuery(Ldap):
             admin_group.format(domain_sid=domain_sid): {"recurseMember": set()}
             for admin_group in ADMIN_GROUPS_SIDS
         }
-        self.users = False
-        self.computers = False
+        self.users = None
+        self.computers = None
 
     def __process_group(self, item: ldapasn1.SearchResultEntry) -> None:  # pyright: ignore[reportUnknownParameterType]
         if not isinstance(item, ldapasn1.SearchResultEntry):
@@ -157,7 +155,7 @@ class LdapQuery(Ldap):
                         elif sid == "S-1-5-32-544":
                             user.is_administrator = True
 
-            self.database.put_user(user)
+            self.users[user.sid] = self.database.put_user(user)  # pyright: ignore[reportOptionalSubscript]
 
             self.display.progress.advance(self.display.progress.task_ids[0])
         except Exception as e:
@@ -184,7 +182,7 @@ class LdapQuery(Ldap):
             if computer.fqdn is None:
                 return
 
-            self.database.put_computer(computer)
+            self.computers[computer.fqdn] = self.database.put_computer(computer)  # pyright: ignore[reportOptionalSubscript]
 
             self.display.progress.advance(self.display.progress.task_ids[0])
         except Exception as e:
@@ -259,6 +257,7 @@ class LdapQuery(Ldap):
         if self.connection is None:
             self.init_connect()
 
+        self.users = {}
         self.__pull_admins()
         self.__pull_recursive_admins()
         search_filter = "(&(objectCategory=person)(objectClass=user))"
@@ -292,12 +291,12 @@ class LdapQuery(Ldap):
                 )
         finally:
             self.display.progress.remove_task(task)
-        self.users = True
 
     def pull_computers(self) -> None:
         if self.connection is None:
             self.init_connect()
 
+        self.computers = {}
         search_filter = "(objectCategory=Computer)"
         task = self.display.progress.add_task(
             "[blue]Querying ldap computers[/blue]",
@@ -320,16 +319,27 @@ class LdapQuery(Ldap):
                 )
         finally:
             self.display.progress.remove_task(task)
-        self.computers = True
 
-    def get_users(self) -> Generator[User]:
-        if not self.users:
+    def get_users(self) -> dict[str, User]:
+        if self.users is None:
             self.pull_users()
 
-        yield from self.database.get_users()
+        return self.users  # pyright: ignore [reportReturnType]
 
-    def get_computers(self) -> Generator[Computer]:
-        if not self.computers:
+    def get_computers(self) -> dict[str, Computer]:
+        if self.computers is None:
             self.pull_computers()
 
-        yield from self.database.get_computers()
+        return self.computers  # pyright: ignore [reportReturnType]
+
+    def display_users(self) -> None:
+        if self.users is None:
+            self.pull_users()
+
+        User.print_tab(self.display, self.users.values())  # pyright: ignore [reportOptionalMemberAccess]
+
+    def display_computers(self) -> None:
+        if self.computers is None:
+            self.pull_computers()
+
+        Computer.print_tab(self.display, self.computers.values())  # pyright: ignore [reportOptionalMemberAccess]

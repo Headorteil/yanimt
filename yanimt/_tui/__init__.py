@@ -1,8 +1,6 @@
 from collections.abc import Iterable
 from typing import Any, ClassVar
 
-from rich.console import Console
-from rich.progress import Progress
 from textual import work
 from textual.app import App, ComposeResult, SystemCommand
 from textual.binding import BindingType
@@ -18,7 +16,7 @@ from yanimt._tui.logger import get_tui_logger
 from yanimt._tui.progress import FooterProgress, TitleProgress
 from yanimt._tui.users import UserTable
 from yanimt._util.consts import TCSS_PATH
-from yanimt._util.logger import add_file_handler, get_null_logger
+from yanimt._util.logger import add_file_handler
 from yanimt._util.types import Display
 from yanimt.gatherer import YanimtGatherer
 
@@ -33,16 +31,7 @@ class YanimtTui(App[Any]):
         super().__init__(*args, **kwargs)
         self.config = config
 
-        null_logger = get_null_logger()
-        null_console = Console(quiet=True)
-        self.display_ = Display(
-            null_logger,
-            null_console,
-            False,
-            False,
-            Progress("", console=null_console),
-            False,
-        )
+        self.display_ = Display.get_null()
 
         self.database = DatabaseManager(self.display_, self.config.db_uri)
         self.gatherer = None
@@ -117,7 +106,7 @@ class YanimtTui(App[Any]):
         self.get_widget_by_id("main_progress").start_task("Gather all data")  # pyright: ignore [reportAttributeAccessIssue]
         try:
             self.logger.debug("Gathering everything")  # pyright: ignore [reportOptionalMemberAccess]
-            self.gatherer.all_()  # pyright: ignore [reportOptionalMemberAccess]
+            self.gatherer.gather_all()  # pyright: ignore [reportOptionalMemberAccess]
         except Exception as e:
             self.logger.exception("Unhandled exception")  # pyright: ignore [reportOptionalMemberAccess]
             self.notify(str(e), title="Error", severity="error")

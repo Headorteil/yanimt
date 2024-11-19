@@ -4,10 +4,12 @@ from typing import Self
 from impacket.examples.secretsdump import (  # pyright: ignore [reportMissingTypeStubs]
     NTDSHashes,
 )
+from rich.table import Table
 
 from yanimt._database.manager import DatabaseManager
 from yanimt._database.models import User
 from yanimt._smb.main import Smb
+from yanimt._util.consts import TABLE_STYLE
 from yanimt._util.smart_class import ADAuthentication, DCValues
 from yanimt._util.types import Display, SmbState
 
@@ -120,3 +122,18 @@ class SecretsDump(Smb):
             self.pull_secrets()
 
         return self.users  # pyright: ignore [reportReturnType]
+
+    def display_secrets(self) -> None:
+        if self.users is None:
+            self.pull_secrets()
+
+        table = Table(title="Secrets")
+        table.add_column(
+            "Sam account name", justify="center", style=TABLE_STYLE, no_wrap=True
+        )
+        table.add_column("SID", justify="center", style=TABLE_STYLE)
+        table.add_column("LM Hash", justify="center", style=TABLE_STYLE)
+        table.add_column("NT Hash", justify="center", style=TABLE_STYLE)
+        for sid, user in self.users.items():  # pyright: ignore [reportOptionalMemberAccess]
+            table.add_row(user.sam_account_name, user.lm_hash, user.nt_hash, sid)
+        self.display.print_page(table)

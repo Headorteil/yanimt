@@ -4,9 +4,11 @@ from impacket.examples.secretsdump import (  # pyright: ignore [reportMissingTyp
     RemoteOperations,
 )
 from impacket.smbconnection import SMBConnection
+from rich.panel import Panel
+from rich.text import Text
 
 from yanimt._database.manager import DatabaseManager
-from yanimt._util.consts import SMB_TIMEOUT
+from yanimt._util.consts import SMB_TIMEOUT, TABLE_STYLE
 from yanimt._util.exceptions import HandledError
 from yanimt._util.smart_class import ADAuthentication, DCValues
 from yanimt._util.types import AuthProto, Display, SmbState
@@ -144,7 +146,6 @@ class Smb:
 
         self.display.logger.opsec("[SMB -> %s] Querying domain SID", self.dc_values.ip)
         domain_sid = self.remote_ops.getDomainSid()  # pyright: ignore [reportOptionalMemberAccess]
-        self.display.logger.info("Domain SID -> %s", domain_sid)
         self.domain_sid = domain_sid
 
     def get_domain_sid(self) -> str:
@@ -152,3 +153,14 @@ class Smb:
             self.pull_domain_sid()
 
         return self.domain_sid  # pyright: ignore [reportReturnType]
+
+    def display_domain_sid(self) -> None:
+        if self.domain_sid is None:
+            self.pull_domain_sid()
+
+        self.display.console.print(
+            Panel(
+                Text(self.domain_sid, style=TABLE_STYLE, justify="center"),  # pyright: ignore [reportArgumentType]
+                title="Domain SID",
+            )
+        )

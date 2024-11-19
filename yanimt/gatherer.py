@@ -10,12 +10,12 @@ from rich.progress import Progress
 
 from yanimt._config import AppConfig
 from yanimt._database.manager import DatabaseManager
-from yanimt._database.models import Computer, ComputerStatus, Domain, User
+from yanimt._database.models import Computer, ComputerStatus, Domain
 from yanimt._dns.main import resolve_dns
 from yanimt._ldap.query import LdapQuery
+from yanimt._smb.main import Smb
 from yanimt._smb.secrets_dump import SecretsDump
-from yanimt._util.consts import PROGRESS_WIDGETS
-from yanimt._util.logger import YanimtLogger, get_null_logger
+from yanimt._util.logger import YanimtLogger
 from yanimt._util.smart_class import ADAuthentication, DCValues
 from yanimt._util.types import AuthProto, Display, DnsProto, LdapScheme
 
@@ -53,20 +53,7 @@ class YanimtGatherer:
         self.__config = config
         self.__now = datetime.now(tz=UTC)
 
-        display_logger = get_null_logger() if logger is None else logger
-        if console is None:
-            display_console = Console(quiet=True)
-            display_live_console = display_console
-        else:
-            display_console = console
-            display_live_console = display_console if live else Console(quiet=True)
-        if progress is None:
-            progress = Progress(
-                *PROGRESS_WIDGETS, transient=True, console=display_live_console
-            )
-        self.__display = Display(
-            display_logger, display_console, display, pager, progress, debug
-        )
+        self.__display = Display(logger, console, display, pager, progress, debug, live)
 
         self.__database = DatabaseManager(self.__display, self.__config.db_uri)
 
@@ -124,9 +111,88 @@ class YanimtGatherer:
         return wrapper
 
     @__init_wrapper
-    def all_(self) -> None:
-        """Run all the Yanimt workflow."""
-        # Run
+    def gather_secrets(self) -> None:
+        with SecretsDump(
+            self.__display,
+            self.__database,
+            self.__dc_values,  # pyright: ignore [reportArgumentType]
+            self.__ad_authentication,
+        ) as secrets_dump:
+            secrets_dump.display_secrets()
+
+    @__init_wrapper
+    def gather_domain_sid(self) -> None:
+        with Smb(
+            self.__display,
+            self.__database,
+            self.__dc_values,  # pyright: ignore [reportArgumentType]
+            self.__ad_authentication,
+        ) as smb:
+            smb.display_domain_sid()
+
+    @__init_wrapper
+    def gather_users(self) -> None:
+        domain_sid = self.__database.get_domain().sid
+        if domain_sid is None:
+            with Smb(
+                self.__display,
+                self.__database,
+                self.__dc_values,  # pyright: ignore [reportArgumentType]
+                self.__ad_authentication,
+            ) as smb:
+                domain_sid = smb.get_domain_sid()
+
+        with LdapQuery(
+            self.__display,
+            self.__database,
+            self.__dc_values,  # pyright: ignore [reportArgumentType]
+            self.__ad_authentication,
+            self.__ldap_scheme,
+            domain_sid=domain_sid,
+        ) as ldap_query:
+            ldap_query.display_users()
+
+    @__init_wrapper
+    def gather_computers(self, resolve: bool = True) -> None:
+        domain_sid = self.__database.get_domain().sid
+        if domain_sid is None:
+            with Smb(
+                self.__display,
+                self.__database,
+                self.__dc_values,  # pyright: ignore [reportArgumentType]
+                self.__ad_authentication,
+            ) as smb:
+                domain_sid = smb.get_domain_sid()
+
+        with LdapQuery(
+            self.__display,
+            self.__database,
+            self.__dc_values,  # pyright: ignore [reportArgumentType]
+            self.__ad_authentication,
+            self.__ldap_scheme,
+            domain_sid=domain_sid,
+        ) as ldap_query:
+            computers = ldap_query.get_computers()
+            if resolve:
+                for computer in computers.values():
+                    resolve_dns(
+                        self.__display,
+                        self.__dc_values,  # pyright: ignore [reportArgumentType]
+                        computer.fqdn,
+                        database=self.__database,
+                    )
+                Computer.print_tab(
+                    self.__display,
+                    filter(
+                        lambda c: c.fqdn in [c.fqdn for c in computers.values()],
+                        self.__database.get_computers(),
+                    ),
+                )
+            else:
+                ldap_query.display_computers()
+
+    @__init_wrapper
+    def gather_all(self) -> None:
         with SecretsDump(
             self.__display,
             self.__database,
@@ -147,7 +213,9 @@ class YanimtGatherer:
             self.__ldap_scheme,
             domain_sid=domain_sid,
         ) as ldap_query:
-            for computer in ldap_query.get_computers():
+            ldap_query.display_users()
+
+            for computer in ldap_query.get_computers().values():
                 resolve_dns(
                     self.__display,
                     self.__dc_values,  # pyright: ignore [reportArgumentType]
@@ -155,5 +223,3 @@ class YanimtGatherer:
                     database=self.__database,
                 )
             Computer.print_tab(self.__display, self.__database.get_computers())
-
-            User.print_tab(self.__display, ldap_query.get_users())

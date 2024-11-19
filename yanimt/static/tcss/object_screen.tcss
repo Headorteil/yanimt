@@ -69,3 +69,7 @@ InitGatherScreen VerticalScroll Button {
 InitGatherScreen VerticalScroll Input {
     text-align: center;
 }
+
+InitGatherScreen RadioSet {
+    box-sizing: content-box;
+}

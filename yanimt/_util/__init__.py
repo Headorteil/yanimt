@@ -1,5 +1,8 @@
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
+
+import typer
 
 from yanimt._util.consts import WINDOWS_MAX_TIME
 from yanimt._util.types import UacCodes
@@ -30,7 +33,23 @@ def auto_str(cls: Any) -> Any:  # noqa: ANN401
     return cls
 
 
-def complete_path() -> (
-    list[None]
-):  # Typer bug : https://github.com/fastapi/typer/issues/951
+# Typer bug : https://github.com/fastapi/typer/issues/951
+def complete_path() -> list[None]:
     return []
+
+
+def log_exceptions_decorator(
+    func: Callable[[Any], Any],
+    ctx: typer.Context,
+    *args: Any,  # noqa: ANN401
+    **kwargs: Any,  # noqa: ANN401
+) -> Any:  # noqa: ANN401
+    logger = ctx.obj.logger
+    try:
+        return func(*args, **kwargs)
+    except ctx.obj.no_stacktrace_exceptions as e:
+        logger.critical(e)
+        raise typer.Exit(code=1) from e
+    except ctx.obj.stacktrace_exceptions as e:
+        logger.exception("Unhandled error")
+        raise typer.Exit(code=2) from e

@@ -39,7 +39,22 @@ yanimt gather -u <username> -p <password> -i <dc ip> all
 
 **Commands**:
 
+* `clear-db`: Clear the database
 * `gather`: Gather required data from AD to a local file
+
+## `yanimt clear-db`
+
+Clear the database
+
+**Usage**:
+
+```console
+$ yanimt clear-db [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
 
 ## `yanimt gather`
 
@@ -71,6 +86,10 @@ $ yanimt gather [OPTIONS] COMMAND [ARGS]...
 **Commands**:
 
 * `all`: Gather all required data from AD
+* `computers`: Gather computers
+* `domain-sid`: Gather the domain sid
+* `secrets`: Gather secrets
+* `users`: Gather users
 
 ### `yanimt gather all`
 
@@ -80,6 +99,63 @@ Gather all required data from AD
 
 ```console
 $ yanimt gather all [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+### `yanimt gather computers`
+
+Gather computers
+
+**Usage**:
+
+```console
+$ yanimt gather computers [OPTIONS]
+```
+
+**Options**:
+
+* `-r, --resolve / -R, --no-resolve`: Resolve the DNS name of the machines  [default: resolve]
+* `--help`: Show this message and exit.
+
+### `yanimt gather domain-sid`
+
+Gather the domain sid
+
+**Usage**:
+
+```console
+$ yanimt gather domain-sid [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+### `yanimt gather secrets`
+
+Gather secrets
+
+**Usage**:
+
+```console
+$ yanimt gather secrets [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+### `yanimt gather users`
+
+Gather users
+
+**Usage**:
+
+```console
+$ yanimt gather users [OPTIONS]
 ```
 
 **Options**:

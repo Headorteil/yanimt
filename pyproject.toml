@@ -22,7 +22,7 @@ python = "^3.11"
 impacket = "^0.11.0"
 typer = "^0.12.3"
 dnspython = "^2.7.0"
-textual = "^0.83.0"
+textual = "^0.86.2"
 sqlalchemy = "^2.0.36"
 pyyaml = "^6.0.2"
 
@@ -32,7 +32,7 @@ yanimt = 'yanimt.cli:app'
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.6.4"
 pre-commit = "^4.0.1"
-textual-dev = "^1.6.1"
+textual-dev = "^1.7.0"
 types-pyyaml = "^6.0.12.20240917"
 types-ldap3 = "^2.9.13.20240205"
 pyright = "^1.1.389"
