@@ -91,7 +91,7 @@ class User(Base):
         )
 
     @staticmethod
-    def print_tab(display: Display, users: list[Any]) -> None:
+    def print_tab(display: Display, users: list["User"]) -> None:
         table = Table(title="Users")
         table.add_column(
             "Sam account name", justify="center", style=TABLE_STYLE, no_wrap=True
@@ -178,7 +178,7 @@ class Computer(Base):
         return str(self.fqdn)
 
     @staticmethod
-    def print_tab(display: Display, computers: list[Any]) -> None:
+    def print_tab(display: Display, computers: list["Computer"]) -> None:
         table = Table(title="Computers")
         table.add_column("FQDN", justify="center", style=TABLE_STYLE, no_wrap=True)
         table.add_column("IP", justify="center", style=TABLE_STYLE)
@@ -192,3 +192,43 @@ class Computer(Base):
     operating_system = Column(Text)
     status = Column(SqlEnum(ComputerStatus))
     user: Mapped["User"] = relationship(back_populates="computer")
+
+
+@auto_str
+class Group(Base):
+    __tablename__ = "groups"
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Group):
+            return self.sid == other.sid  # pyright: ignore [reportAttributeAccessIssue]
+        return False
+
+    def __repr__(self) -> str:
+        return (
+            str(self.sam_account_name)
+            if self.sam_account_name is not None
+            else str(self.sid)
+        )
+
+    @staticmethod
+    def print_tab(display: Display, groups: list["Group"]) -> None:
+        table = Table(title="Groups")
+        table.add_column(
+            "Sam account name", justify="center", style=TABLE_STYLE, no_wrap=True
+        )
+        table.add_column("SID", justify="center", style=TABLE_STYLE)
+        table.add_column("Distinguished name", justify="center", style=TABLE_STYLE)
+        table.add_column("Members", justify="center", style=TABLE_STYLE)
+        for group in groups:
+            table.add_row(
+                group.sam_account_name,
+                group.sid,
+                group.distinguished_name,
+                str(group.members),
+            )
+        display.print_page(table)
+
+    sid = Column(Text, primary_key=True)
+    distinguished_name = Column(Text)
+    members = Column(StringArray)
+    sam_account_name = Column(Text)

@@ -118,28 +118,14 @@ class Display:
     def print_page(self, obj: Any) -> None:  # noqa: ANN401
         if not self.display:
             return
-        extra_width = obj._extra_width  # noqa: SLF001
-        max_width = sum(
-            obj._calculate_column_widths(  # noqa: SLF001
-                self.console,
-                self.console.options.update_width(
-                    self.console.options.max_width - extra_width
-                ),
-            )
+        pager_console = Console(width=1000)
+        tab_width = (
+            sum(obj._calculate_column_widths(pager_console, pager_console.options))  # noqa: SLF001
+            + obj._extra_width  # noqa: SLF001
         )
-        measurements = [
-            obj._measure_column(  # noqa: SLF001
-                self.console, self.console.options.update_width(max_width), column
-            )
-            for column in obj.columns
-        ]
-        minimum_width = (
-            sum(measurement.minimum for measurement in measurements) + extra_width
-        )
-        too_large = minimum_width > self.console.options.max_width
+        too_large = tab_width > self.console.options.max_width
         if self.pager and too_large:
             self.logger.info("Table too large, printing it in less")
-            pager_console = Console(width=1000)
             with pager_console.pager(styles=True, pager=LessPager()):
                 pager_console.print(obj)
         else:

@@ -88,6 +88,7 @@ $ yanimt gather [OPTIONS] COMMAND [ARGS]...
 * `all`: Gather all required data from AD
 * `computers`: Gather computers
 * `domain-sid`: Gather the domain sid
+* `groups`: Gather groups
 * `secrets`: Gather secrets
 * `users`: Gather users
 
@@ -128,6 +129,20 @@ Gather the domain sid
 
 ```console
 $ yanimt gather domain-sid [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+### `yanimt gather groups`
+
+Gather groups
+
+**Usage**:
+
+```console
+$ yanimt gather groups [OPTIONS]
 ```
 
 **Options**:

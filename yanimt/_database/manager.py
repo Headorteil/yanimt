@@ -3,7 +3,7 @@ from collections.abc import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from yanimt._database.models import Base, Computer, Domain, User
+from yanimt._database.models import Base, Computer, Domain, Group, User
 from yanimt._util.consts import BATCH_SIZE
 from yanimt._util.types import Display
 
@@ -26,7 +26,9 @@ class DatabaseManager:
 
     def get_users(self) -> Generator[User]:
         with self.session_maker.begin() as session:
-            yield from session.query(User).yield_per(BATCH_SIZE)
+            yield from (
+                session.query(User).filter(User.computer == None).yield_per(BATCH_SIZE)  # noqa: E711
+            )
 
     def get_user(self, sid: str) -> User:
         with self.session_maker.begin() as session:
@@ -51,3 +53,15 @@ class DatabaseManager:
     def get_computer(self, fqdn: str) -> Computer:
         with self.session_maker.begin() as session:
             return session.query(Computer).get(fqdn)
+
+    def put_group(self, group: Group) -> None:
+        with self.session_maker.begin() as session:
+            return session.merge(group)
+
+    def get_groups(self) -> Generator[Group]:
+        with self.session_maker.begin() as session:
+            yield from session.query(Group).yield_per(BATCH_SIZE)
+
+    def get_group(self, sid: str) -> Group:
+        with self.session_maker.begin() as session:
+            return session.query(Group).get(sid)

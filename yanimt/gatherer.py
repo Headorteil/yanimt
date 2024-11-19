@@ -134,15 +134,9 @@ class YanimtGatherer:
     def gather_users(self) -> None:
         domain = self.__database.get_domain()
         if domain is None:
-            with Smb(
-                self.__display,
-                self.__database,
-                self.__dc_values,  # pyright: ignore [reportArgumentType]
-                self.__ad_authentication,
-            ) as smb:
-                domain_sid = smb.get_domain_sid()
-        else:
-            domain_sid = domain.sid
+            self.gather_domain_sid()
+            domain = self.__database.get_domain()
+        domain_sid = domain.sid
 
         with LdapQuery(
             self.__display,
@@ -158,15 +152,9 @@ class YanimtGatherer:
     def gather_computers(self, resolve: bool = True) -> None:
         domain = self.__database.get_domain()
         if domain is None:
-            with Smb(
-                self.__display,
-                self.__database,
-                self.__dc_values,  # pyright: ignore [reportArgumentType]
-                self.__ad_authentication,
-            ) as smb:
-                domain_sid = smb.get_domain_sid()
-        else:
-            domain_sid = domain.sid
+            self.gather_domain_sid()
+            domain = self.__database.get_domain()
+        domain_sid = domain.sid
 
         with LdapQuery(
             self.__display,
@@ -194,6 +182,24 @@ class YanimtGatherer:
                 )
             else:
                 ldap_query.display_computers()
+
+    @__init_wrapper
+    def gather_groups(self) -> None:
+        domain = self.__database.get_domain()
+        if domain is None:
+            self.gather_domain_sid()
+            domain = self.__database.get_domain()
+        domain_sid = domain.sid
+
+        with LdapQuery(
+            self.__display,
+            self.__database,
+            self.__dc_values,  # pyright: ignore [reportArgumentType]
+            self.__ad_authentication,
+            self.__ldap_scheme,
+            domain_sid=domain_sid,
+        ) as ldap_query:
+            ldap_query.display_groups()
 
     @__init_wrapper
     def gather_all(self) -> None:

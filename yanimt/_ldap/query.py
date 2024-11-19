@@ -2,7 +2,7 @@ from impacket.ldap import ldap, ldapasn1  # pyright: ignore[reportAttributeAcces
 from ldap3.protocol.formatters.formatters import format_sid
 
 from yanimt._database.manager import DatabaseManager
-from yanimt._database.models import Computer, ComputerStatus, User
+from yanimt._database.models import Computer, ComputerStatus, Group, User
 from yanimt._ldap.main import Ldap
 from yanimt._util import parse_uac, parse_windows_time
 from yanimt._util.consts import ADMIN_GROUPS_SIDS
@@ -29,8 +29,48 @@ class LdapQuery(Ldap):
         }
         self.users = None
         self.computers = None
+        self.groups = None
 
     def __process_group(self, item: ldapasn1.SearchResultEntry) -> None:  # pyright: ignore[reportUnknownParameterType]
+        if not isinstance(item, ldapasn1.SearchResultEntry):
+            return
+        group = Group()
+        try:
+            for attribute in item["attributes"]:
+                if str(attribute["type"]) == "distinguishedName":
+                    group.distinguished_name = (
+                        attribute["vals"][0].asOctets().decode("utf-8")
+                    )
+                elif str(attribute["type"]) == "objectSid":
+                    group.sid = format_sid(
+                        attribute["vals"][0].asOctets(),
+                    )
+                elif str(attribute["type"]) == "member":
+                    group.members = [
+                        i.asOctets().decode("utf-8") for i in attribute["vals"]
+                    ]
+                elif str(attribute["type"]) == "sAMAccountName":
+                    group.sam_account_name = (
+                        attribute["vals"][0].asOctets().decode("utf-8")
+                    )
+
+            if group.sid is None:
+                return
+
+            self.groups[group.sid] = self.database.put_group(group)  # pyright: ignore[reportOptionalSubscript]
+
+            self.display.progress.advance(self.display.progress.task_ids[0])
+        except Exception as e:
+            if self.display.debug:
+                self.display.logger.exception(
+                    "Skipping item, cannot process due to error"
+                )
+            else:
+                self.display.logger.warning(
+                    "Skipping item, cannot process due to error -> %s", e
+                )
+
+    def __process_admin_group(self, item: ldapasn1.SearchResultEntry) -> None:  # pyright: ignore[reportUnknownParameterType]
         if not isinstance(item, ldapasn1.SearchResultEntry):
             return
         group_dict = {}
@@ -40,7 +80,7 @@ class LdapQuery(Ldap):
                     group_dict["distinguishedName"] = (
                         attribute["vals"][0].asOctets().decode("utf-8")
                     )
-                if str(attribute["type"]) == "objectSid":
+                elif str(attribute["type"]) == "objectSid":
                     group_dict["objectSid"] = format_sid(
                         attribute["vals"][0].asOctets(),
                     )
@@ -64,7 +104,7 @@ class LdapQuery(Ldap):
                     "Skipping item, cannot process due to error -> %s", e
                 )
 
-    def __recurse_process_group(self, item: ldapasn1.SearchResultEntry) -> None:  # pyright: ignore[reportUnknownParameterType]
+    def __recurse_process_admin_group(self, item: ldapasn1.SearchResultEntry) -> None:  # pyright: ignore[reportUnknownParameterType]
         if not isinstance(item, ldapasn1.SearchResultEntry):
             return
         group_dict = {}
@@ -137,7 +177,7 @@ class LdapQuery(Ldap):
                         attribute["vals"][0].asOctets().decode("utf-8")
                     )
 
-            if (user.sam_account_name is None) or (user.sid is None):
+            if user.sid is None:
                 return
 
             if user.distinguished_name is not None:
@@ -224,7 +264,7 @@ class LdapQuery(Ldap):
                         attribute["vals"][0].asOctets().decode("utf-8")
                     )
 
-            if not ((user.sam_account_name is None) or (user.sid is None)):
+            if user.sid is not None:
                 if user.distinguished_name is not None:
                     user.is_domain_admin = False
                     user.is_entreprise_admin = False
@@ -292,7 +332,7 @@ class LdapQuery(Ldap):
                         searchFilter=search_filter,
                         attributes=["distinguishedName", "objectSid"],
                         searchControls=[self.sc],
-                        perRecordCallback=self.__process_group,
+                        perRecordCallback=self.__process_admin_group,
                     )
         finally:
             self.display.progress.remove_task(task)
@@ -325,7 +365,7 @@ class LdapQuery(Ldap):
                             searchFilter=search_filter,
                             attributes=["distinguishedName"],
                             searchControls=[self.sc],
-                            perRecordCallback=self.__recurse_process_group,
+                            perRecordCallback=self.__recurse_process_admin_group,
                         )
                     finally:
                         self.display.progress.remove_task(members_task)
@@ -411,6 +451,37 @@ class LdapQuery(Ldap):
         finally:
             self.display.progress.remove_task(task)
 
+    def pull_groups(self) -> None:
+        if self.connection is None:
+            self.init_connect()
+
+        self.groups = {}
+        search_filter = "(objectClass=group)"
+        task = self.display.progress.add_task(
+            "[blue]Querying ldap groups[/blue]",
+            total=None,
+        )
+        try:
+            with self.display.progress:
+                self.display.logger.opsec(
+                    "[%s -> %s] Querying ldap groups",
+                    self.scheme.value.upper(),
+                    self.dc_values.ip,
+                )
+                self.connection.search(  # pyright: ignore [reportOptionalMemberAccess]
+                    searchFilter=search_filter,
+                    attributes=[
+                        "sAMAccountName",
+                        "distinguishedName",
+                        "objectSid",
+                        "member",
+                    ],
+                    searchControls=[self.sc],
+                    perRecordCallback=self.__process_group,
+                )
+        finally:
+            self.display.progress.remove_task(task)
+
     def get_users(self) -> dict[str, User]:
         if self.users is None:
             self.pull_users()
@@ -423,6 +494,12 @@ class LdapQuery(Ldap):
 
         return self.computers  # pyright: ignore [reportReturnType]
 
+    def get_groups(self) -> dict[str, "Group"]:
+        if self.groups is None:
+            self.pull_groups()
+
+        return self.groups  # pyright: ignore [reportReturnType]
+
     def display_users(self) -> None:
         if self.users is None:
             self.pull_users()
@@ -434,3 +511,9 @@ class LdapQuery(Ldap):
             self.pull_computers()
 
         Computer.print_tab(self.display, self.computers.values())  # pyright: ignore [reportOptionalMemberAccess]
+
+    def display_groups(self) -> None:
+        if self.groups is None:
+            self.pull_groups()
+
+        Group.print_tab(self.display, self.groups.values())  # pyright: ignore [reportOptionalMemberAccess]
