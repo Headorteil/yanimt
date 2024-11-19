@@ -12,6 +12,7 @@ from yanimt._config import AppConfig
 from yanimt._database.manager import DatabaseManager
 from yanimt._tui.computers import ComputerTable
 from yanimt._tui.gather import InitGatherScreen
+from yanimt._tui.groups import GroupTree
 from yanimt._tui.logger import get_tui_logger
 from yanimt._tui.progress import FooterProgress, TitleProgress
 from yanimt._tui.users import UserTable
@@ -54,9 +55,10 @@ class YanimtTui(App[Any]):
             yield Center(
                 FooterProgress(id="modules_progress"), id="modules_progress_center"
             )
-            with TabbedContent("Users", "Computers", "Logs", id="tabs"):
+            with TabbedContent("Users", "Computers", "Groups", "Logs", id="tabs"):
                 yield VerticalScroll(UserTable(id="user_table"))
                 yield VerticalScroll(ComputerTable(id="computer_table"))
+                yield VerticalScroll(GroupTree(id="group_table"))
                 yield RichLog(id="logs_table", min_width=1000)
 
     def on_mount(self) -> None:
@@ -120,5 +122,6 @@ class YanimtTui(App[Any]):
             self.call_from_thread(
                 self.get_widget_by_id("computer_table").render_computers  # pyright: ignore [reportAttributeAccessIssue]
             )
+            self.call_from_thread(self.get_widget_by_id("group_table").render_group)  # pyright: ignore [reportAttributeAccessIssue]
         finally:
             self.get_widget_by_id("main_progress").stop_task()  # pyright: ignore [reportAttributeAccessIssue]

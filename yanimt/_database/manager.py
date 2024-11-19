@@ -27,7 +27,10 @@ class DatabaseManager:
     def get_users(self) -> Generator[User]:
         with self.session_maker.begin() as session:
             yield from (
-                session.query(User).filter(User.computer == None).yield_per(BATCH_SIZE)  # noqa: E711
+                session.query(User)
+                .filter(User.computer == None)  # noqa: E711
+                .order_by(User.sam_account_name)
+                .yield_per(BATCH_SIZE)
             )
 
     def get_user(self, sid: str) -> User:
@@ -48,7 +51,9 @@ class DatabaseManager:
 
     def get_computers(self) -> Generator[Computer]:
         with self.session_maker.begin() as session:
-            yield from session.query(Computer).yield_per(BATCH_SIZE)
+            yield from (
+                session.query(Computer).order_by(Computer.fqdn).yield_per(BATCH_SIZE)
+            )
 
     def get_computer(self, fqdn: str) -> Computer:
         with self.session_maker.begin() as session:
@@ -60,7 +65,11 @@ class DatabaseManager:
 
     def get_groups(self) -> Generator[Group]:
         with self.session_maker.begin() as session:
-            yield from session.query(Group).yield_per(BATCH_SIZE)
+            yield from (
+                session.query(Group)
+                .order_by(Group.sam_account_name)
+                .yield_per(BATCH_SIZE)
+            )
 
     def get_group(self, sid: str) -> Group:
         with self.session_maker.begin() as session:

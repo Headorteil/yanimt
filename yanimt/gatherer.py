@@ -233,3 +233,4 @@ class YanimtGatherer:
                     database=self.__database,
                 )
             Computer.print_tab(self.__display, self.__database.get_computers())
+            ldap_query.display_groups()
