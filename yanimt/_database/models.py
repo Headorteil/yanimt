@@ -1,13 +1,13 @@
 import json
 from collections.abc import Callable
 from enum import StrEnum
-from typing import Any
+from typing import Any, Optional
 
 from rich.table import Table
-from sqlalchemy import Boolean, Column, DateTime, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Text
 from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.engine.interfaces import Dialect
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import Mapped, declarative_base, mapped_column, relationship
 from sqlalchemy.types import UserDefinedType
 
 from yanimt._util import auto_str
@@ -18,6 +18,7 @@ Base = declarative_base()
 
 
 class ComputerStatus(StrEnum):
+    READ_ONLY_DOMAIN_CONTROLLER = "Read only domain controller"
     DOMAIN_CONTROLLER = "Domain controller"
     SERVER = "Server"
     WORKSTATION = "Workstation"
@@ -144,6 +145,8 @@ class User(Base):
     is_entreprise_admin = Column(Boolean)
     is_administrator = Column(Boolean)
     last_logon_timestamp = Column(DateTime(timezone=True))
+    computer_id: Mapped[str | None] = mapped_column(ForeignKey("computers.fqdn"))
+    computer: Mapped[Optional["Computer"]] = relationship(back_populates="user")
 
 
 @auto_str
@@ -186,4 +189,6 @@ class Computer(Base):
 
     fqdn = Column(Text, primary_key=True)
     ip = Column(Text)
+    operating_system = Column(Text)
     status = Column(SqlEnum(ComputerStatus))
+    user: Mapped["User"] = relationship(back_populates="computer")

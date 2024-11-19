@@ -132,8 +132,8 @@ class YanimtGatherer:
 
     @__init_wrapper
     def gather_users(self) -> None:
-        domain_sid = self.__database.get_domain().sid
-        if domain_sid is None:
+        domain = self.__database.get_domain()
+        if domain is None:
             with Smb(
                 self.__display,
                 self.__database,
@@ -141,6 +141,8 @@ class YanimtGatherer:
                 self.__ad_authentication,
             ) as smb:
                 domain_sid = smb.get_domain_sid()
+        else:
+            domain_sid = domain.sid
 
         with LdapQuery(
             self.__display,
@@ -154,8 +156,8 @@ class YanimtGatherer:
 
     @__init_wrapper
     def gather_computers(self, resolve: bool = True) -> None:
-        domain_sid = self.__database.get_domain().sid
-        if domain_sid is None:
+        domain = self.__database.get_domain()
+        if domain is None:
             with Smb(
                 self.__display,
                 self.__database,
@@ -163,6 +165,8 @@ class YanimtGatherer:
                 self.__ad_authentication,
             ) as smb:
                 domain_sid = smb.get_domain_sid()
+        else:
+            domain_sid = domain.sid
 
         with LdapQuery(
             self.__display,

@@ -9,12 +9,10 @@ import typer
 from rich.console import Console
 
 from yanimt._config import AppConfig
-from yanimt._database.manager import DatabaseManager
 from yanimt._tui import YanimtTui
 from yanimt._util.consts import DEFAULT_CONFIG_FILE
 from yanimt._util.exceptions import HandledError
 from yanimt._util.logger import add_file_handler, get_logger
-from yanimt._util.types import Display
 from yanimt.cli.gather import app as gather_app
 
 app = typer.Typer(
@@ -145,15 +143,9 @@ def main(
 
 @app.command("clear-db", help="Clear the database")
 def clear_db(ctx: typer.Context) -> None:
-    display = Display(
-        ctx.obj.logger,
-        ctx.obj.console,
-        ctx.obj.display,
-        ctx.obj.pager,
-        None,
-        ctx.obj.debug,
-        ctx.obj.live,
-    )
-    database = DatabaseManager(display, ctx.obj.config.db_uri)
-    database.clear()
-    display.logger.info("Database was droped")
+    db_file = Path(ctx.obj.config.db_uri.replace("sqlite:///", ""))
+    if db_file.is_file():
+        db_file.unlink()
+        ctx.obj.logger.info("Database was droped")
+    else:
+        ctx.obj.logger.info("Database doesn't exist")

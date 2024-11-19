@@ -2,12 +2,12 @@ from impacket.ldap import ldap, ldapasn1  # pyright: ignore[reportAttributeAcces
 from ldap3.protocol.formatters.formatters import format_sid
 
 from yanimt._database.manager import DatabaseManager
-from yanimt._database.models import Computer, User
+from yanimt._database.models import Computer, ComputerStatus, User
 from yanimt._ldap.main import Ldap
 from yanimt._util import parse_uac, parse_windows_time
 from yanimt._util.consts import ADMIN_GROUPS_SIDS
 from yanimt._util.smart_class import ADAuthentication, DCValues
-from yanimt._util.types import Display, LdapScheme
+from yanimt._util.types import Display, LdapScheme, UacCodes
 
 
 class LdapQuery(Ldap):
@@ -99,8 +99,6 @@ class LdapQuery(Ldap):
                     user.sam_account_name = (
                         attribute["vals"][0].asOctets().decode("utf-8")
                     )
-                    if user.sam_account_name.endswith("$"):
-                        return
                 elif str(attribute["type"]) == "pwdLastSet":
                     user.pwd_last_set = parse_windows_time(
                         int(
@@ -171,16 +169,98 @@ class LdapQuery(Ldap):
     def __process_computer(self, item: ldapasn1.SearchResultEntry) -> None:  # pyright: ignore[reportUnknownParameterType]
         if not isinstance(item, ldapasn1.SearchResultEntry):
             return
+        user = User()
         computer = Computer()
         try:
             for attribute in item["attributes"]:
-                if str(attribute["type"]) == "dNSHostName":
+                if str(attribute["type"]) == "sAMAccountName":
+                    user.sam_account_name = (
+                        attribute["vals"][0].asOctets().decode("utf-8")
+                    )
+                elif str(attribute["type"]) == "pwdLastSet":
+                    user.pwd_last_set = parse_windows_time(
+                        int(
+                            attribute["vals"][0].asOctets().decode("utf-8"),
+                        )
+                    )
+                elif str(attribute["type"]) == "mail":
+                    user.mail = attribute["vals"][0].asOctets().decode("utf-8")
+                elif str(attribute["type"]) == "objectSid":
+                    user.sid = format_sid(attribute["vals"][0].asOctets())
+                elif str(attribute["type"]) == "userAccountControl":
+                    uac = int(attribute["vals"][0].asOctets().decode("utf-8"))
+                    user.user_account_control = parse_uac(uac)
+                elif str(attribute["type"]) == "servicePrincipalName":
+                    user.service_principal_name = [
+                        i.asOctets().decode("utf-8") for i in attribute["vals"]
+                    ]
+                elif str(attribute["type"]) == "accountExpires":
+                    user.account_expires = parse_windows_time(
+                        int(
+                            attribute["vals"][0].asOctets().decode("utf-8"),
+                        )
+                    )
+                elif str(attribute["type"]) == "memberOf":
+                    user.member_of = [
+                        i.asOctets().decode("utf-8") for i in attribute["vals"]
+                    ]
+                elif str(attribute["type"]) == "lastLogonTimestamp":
+                    user.last_logon_timestamp = parse_windows_time(
+                        int(
+                            attribute["vals"][0].asOctets().decode("utf-8"),
+                        )
+                    )
+                elif str(attribute["type"]) == "distinguishedName":
+                    user.distinguished_name = (
+                        attribute["vals"][0].asOctets().decode("utf-8")
+                    )
+
+                elif str(attribute["type"]) == "dNSHostName":
                     computer.fqdn = (
                         attribute["vals"][0].asOctets().decode("utf-8").lower()
                     )
+                elif str(attribute["type"]) == "operatingSystem":
+                    computer.operating_system = (
+                        attribute["vals"][0].asOctets().decode("utf-8")
+                    )
+
+            if not ((user.sam_account_name is None) or (user.sid is None)):
+                if user.distinguished_name is not None:
+                    user.is_domain_admin = False
+                    user.is_entreprise_admin = False
+                    user.is_administrator = False
+                    for sid, group in self.admin_groups.items():
+                        if user.distinguished_name in group["recurseMember"]:
+                            if sid.endswith("-512"):
+                                user.is_domain_admin = True
+                            elif sid.endswith("-519"):
+                                user.is_entreprise_admin = True
+                            elif sid == "S-1-5-32-544":
+                                user.is_administrator = True
+                computer.user = user
+            else:
+                computer.user = None
 
             if computer.fqdn is None:
                 return
+
+            if (
+                user.user_account_control is not None
+                and UacCodes.SERVER_TRUST_ACCOUNT in user.user_account_control
+            ):
+                computer.status = ComputerStatus.DOMAIN_CONTROLLER
+            elif (
+                user.user_account_control is not None
+                and UacCodes.PARTIAL_SECRETS_ACCOUNT in user.user_account_control
+            ):
+                computer.status = ComputerStatus.READ_ONLY_DOMAIN_CONTROLLER
+            elif (
+                computer.operating_system is not None
+                and "server" in computer.operating_system.lower()
+            ):
+                computer.status = ComputerStatus.SERVER
+            elif computer.operating_system is not None:
+                computer.status = ComputerStatus.WORKSTATION
 
             self.computers[computer.fqdn] = self.database.put_computer(computer)  # pyright: ignore[reportOptionalSubscript]
 
@@ -312,7 +392,18 @@ class LdapQuery(Ldap):
                 self.connection.search(  # pyright: ignore [reportOptionalMemberAccess]
                     searchFilter=search_filter,
                     attributes=[
+                        "sAMAccountName",
+                        "pwdLastSet",
+                        "mail",
+                        "objectSid",
+                        "userAccountControl",
+                        "servicePrincipalName",
+                        "accountExpires",
+                        "memberOf",
+                        "lastLogonTimestamp",
+                        "distinguishedName",
                         "dNSHostName",
+                        "operatingSystem",
                     ],
                     searchControls=[self.sc],
                     perRecordCallback=self.__process_computer,

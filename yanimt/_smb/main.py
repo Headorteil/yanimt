@@ -8,6 +8,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from yanimt._database.manager import DatabaseManager
+from yanimt._database.models import Domain
 from yanimt._util.consts import SMB_TIMEOUT, TABLE_STYLE
 from yanimt._util.exceptions import HandledError
 from yanimt._util.smart_class import ADAuthentication, DCValues
@@ -146,6 +147,8 @@ class Smb:
 
         self.display.logger.opsec("[SMB -> %s] Querying domain SID", self.dc_values.ip)
         domain_sid = self.remote_ops.getDomainSid()  # pyright: ignore [reportOptionalMemberAccess]
+        domain = Domain(sid=domain_sid)
+        self.database.put_domain(domain)
         self.domain_sid = domain_sid
 
     def get_domain_sid(self) -> str:
