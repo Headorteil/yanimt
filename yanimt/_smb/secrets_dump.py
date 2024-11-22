@@ -131,9 +131,9 @@ class SecretsDump(Smb):
         table.add_column(
             "Sam account name", justify="center", style=TABLE_STYLE, no_wrap=True
         )
-        table.add_column("SID", justify="center", style=TABLE_STYLE)
         table.add_column("LM Hash", justify="center", style=TABLE_STYLE)
         table.add_column("NT Hash", justify="center", style=TABLE_STYLE)
+        table.add_column("SID", justify="center", style=TABLE_STYLE)
         for sid, user in self.users.items():  # pyright: ignore [reportOptionalMemberAccess]
             table.add_row(user.sam_account_name, user.lm_hash, user.nt_hash, sid)
         self.display.print_page(table)

@@ -44,3 +44,8 @@ OPSEC_LEVEL = 25
 BATCH_SIZE = 1000
 
 TABLE_STYLE = "steel_blue1"
+ADMIN_STYLE = "red"
+WORKSTATION_STYLE = "bold"
+SERVER_STYLE = "bold chartreuse2"
+DC_STYLE = "bold red"
+RODC_STYLE = "bold orange3"

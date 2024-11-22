@@ -10,7 +10,7 @@ from rich.progress import Progress
 
 from yanimt._config import AppConfig
 from yanimt._database.manager import DatabaseManager
-from yanimt._database.models import Computer, ComputerStatus, Domain
+from yanimt._database.models import Computer, Domain
 from yanimt._dns.main import resolve_dns
 from yanimt._ldap.query import LdapQuery
 from yanimt._smb.main import Smb
@@ -92,12 +92,6 @@ class YanimtGatherer:
             self.__dns_ip,
             self.__dns_proto,
         )
-        dc = Computer(
-            fqdn=self.__dc_values.host,
-            ip=self.__dc_values.ip,
-            status=ComputerStatus.DOMAIN_CONTROLLER,
-        )
-        self.__database.put_computer(dc)
 
     @staticmethod
     def __init_wrapper(
@@ -202,6 +196,24 @@ class YanimtGatherer:
             ldap_query.display_groups()
 
     @__init_wrapper
+    def gather_organisational_units(self) -> None:
+        domain = self.__database.get_domain()
+        if domain is None:
+            self.gather_domain_sid()
+            domain = self.__database.get_domain()
+        domain_sid = domain.sid
+
+        with LdapQuery(
+            self.__display,
+            self.__database,
+            self.__dc_values,  # pyright: ignore [reportArgumentType]
+            self.__ad_authentication,
+            self.__ldap_scheme,
+            domain_sid=domain_sid,
+        ) as ldap_query:
+            ldap_query.display_organisational_units()
+
+    @__init_wrapper
     def gather_all(self) -> None:
         with SecretsDump(
             self.__display,
@@ -234,3 +246,4 @@ class YanimtGatherer:
                 )
             Computer.print_tab(self.__display, self.__database.get_computers())
             ldap_query.display_groups()
+            ldap_query.display_organisational_units()

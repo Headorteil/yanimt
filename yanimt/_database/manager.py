@@ -3,7 +3,14 @@ from collections.abc import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from yanimt._database.models import Base, Computer, Domain, Group, User
+from yanimt._database.models import (
+    Base,
+    Computer,
+    Domain,
+    Group,
+    OrganisationalUnit,
+    User,
+)
 from yanimt._util.consts import BATCH_SIZE
 from yanimt._util.types import Display
 
@@ -74,3 +81,19 @@ class DatabaseManager:
     def get_group(self, sid: str) -> Group:
         with self.session_maker.begin() as session:
             return session.query(Group).get(sid)
+
+    def put_organisational_unit(self, organisational_unit: OrganisationalUnit) -> None:
+        with self.session_maker.begin() as session:
+            return session.merge(organisational_unit)
+
+    def get_organisational_units(self) -> Generator[OrganisationalUnit]:
+        with self.session_maker.begin() as session:
+            yield from (
+                session.query(OrganisationalUnit)
+                .order_by(OrganisationalUnit.name)
+                .yield_per(BATCH_SIZE)
+            )
+
+    def get_organisational_unit(self, distinguished_name: str) -> OrganisationalUnit:
+        with self.session_maker.begin() as session:
+            return session.query(OrganisationalUnit).get(distinguished_name)

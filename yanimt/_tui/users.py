@@ -12,7 +12,6 @@ class UserTable(YanimtTable):
             ("password_last_set", "Password last set"),
             ("nt_hash", "NT hash"),
             ("lm_hash", "LM hash"),
-            ("is_admin", "Is admin"),
             ("last_logon_timestamp", "Last logon timestamp"),
         ):
             self.add_column(label, key=key)
@@ -22,14 +21,11 @@ class UserTable(YanimtTable):
         self.clear()
         for user in self.database.get_users():
             self.add_row(
-                user.sam_account_name,
+                user.rich(),
                 user.user_account_control,
                 user.pwd_last_set,
                 user.nt_hash,
                 user.lm_hash,
-                user.is_administrator
-                or user.is_domain_admin
-                or user.is_entreprise_admin,
                 user.last_logon_timestamp,
                 key=user.sid,
             )
@@ -65,7 +61,7 @@ class UserScreen(YanimtObjectScreen):
         md += "\n- ".join(
             "**{}**: {}".format(*item)
             for item in vars(self.obj).items()
-            if not item[0].startswith("_")
+            if not (item[0].startswith("_") or item[0] in ("computer_id", "computer"))
         )
         yield Footer()
         yield Markdown(markdown=md, id="obj_widget")

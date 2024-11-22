@@ -89,6 +89,7 @@ $ yanimt gather [OPTIONS] COMMAND [ARGS]...
 * `computers`: Gather computers
 * `domain-sid`: Gather the domain sid
 * `groups`: Gather groups
+* `ous`: Gather organisational units
 * `secrets`: Gather secrets
 * `users`: Gather users
 
@@ -143,6 +144,20 @@ Gather groups
 
 ```console
 $ yanimt gather groups [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+### `yanimt gather ous`
+
+Gather organisational units
+
+**Usage**:
+
+```console
+$ yanimt gather ous [OPTIONS]
 ```
 
 **Options**:

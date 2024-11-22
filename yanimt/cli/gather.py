@@ -232,6 +232,11 @@ def groups(ctx: typer.Context) -> None:
     log_exceptions_decorator(ctx.obj.gatherer.gather_groups, ctx)
 
 
+@app.command("ous", help="Gather organisational units")
+def organisational_units(ctx: typer.Context) -> None:
+    log_exceptions_decorator(ctx.obj.gatherer.gather_organisational_units, ctx)
+
+
 @app.command("all", help="Gather all required data from AD")
 def all_(ctx: typer.Context) -> None:
     log_exceptions_decorator(ctx.obj.gatherer.gather_all, ctx)

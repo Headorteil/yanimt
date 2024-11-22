@@ -1,13 +1,214 @@
+from datetime import datetime
+from typing import Optional
+
 from impacket.ldap import ldap, ldapasn1  # pyright: ignore[reportAttributeAccessIssue]
 from ldap3.protocol.formatters.formatters import format_sid
 
 from yanimt._database.manager import DatabaseManager
-from yanimt._database.models import Computer, ComputerStatus, Group, User
+from yanimt._database.models import (
+    Computer,
+    ComputerStatus,
+    Group,
+    OrganisationalUnit,
+    User,
+)
 from yanimt._ldap.main import Ldap
 from yanimt._util import parse_uac, parse_windows_time
 from yanimt._util.consts import ADMIN_GROUPS_SIDS
 from yanimt._util.smart_class import ADAuthentication, DCValues
 from yanimt._util.types import Display, LdapScheme, UacCodes
+
+
+class LdapResult:
+    def __init__(
+        self,
+        distinguished_name: str | None = None,
+        name: str | None = None,
+        sid: str | None = None,
+        members: list[str] | None = None,
+        sam_account_name: str | None = None,
+        pwd_last_set: datetime | None = None,
+        mail: str | None = None,
+        user_account_control: list[UacCodes] | None = None,
+        service_principal_name: list[str] | None = None,
+        account_expires: datetime | None = None,
+        member_of: list[str] | None = None,
+        last_logon_timestamp: datetime | None = None,
+        fqdn: str | None = None,
+        operating_system: str | None = None,
+    ) -> None:
+        self.distinguished_name = distinguished_name
+        self.name = name
+        self.sid = sid
+        self.members = members
+        self.sam_account_name = sam_account_name
+        self.pwd_last_set = pwd_last_set
+        self.mail = mail
+        self.user_account_control = user_account_control
+        self.service_principal_name = service_principal_name
+        self.account_expires = account_expires
+        self.member_of = member_of
+        self.last_logon_timestamp = last_logon_timestamp
+        self.fqdn = fqdn
+        self.operating_system = operating_system
+
+    def get_group(self) -> Group:
+        return Group(
+            distinguished_name=self.distinguished_name,
+            sid=self.sid,
+            members=self.members,
+            sam_account_name=self.sam_account_name,
+        )
+
+    def get_organisational_unit(self) -> OrganisationalUnit:
+        return OrganisationalUnit(
+            distinguished_name=self.distinguished_name,
+            name=self.name,
+        )
+
+    def get_user(self) -> User:
+        return User(
+            sam_account_name=self.sam_account_name,
+            pwd_last_set=self.pwd_last_set,
+            mail=self.mail,
+            sid=self.sid,
+            user_account_control=None
+            if self.user_account_control is None
+            else self.user_account_control.copy(),
+            service_principal_name=None
+            if self.service_principal_name is None
+            else self.service_principal_name.copy(),
+            account_expires=self.account_expires,
+            member_of=None if self.member_of is None else self.member_of.copy(),
+            last_logon_timestamp=self.last_logon_timestamp,
+            distinguished_name=self.distinguished_name,
+        )
+
+    def get_computer(self) -> Computer:
+        user = User(
+            sam_account_name=self.sam_account_name,
+            pwd_last_set=self.pwd_last_set,
+            mail=self.mail,
+            sid=self.sid,
+            user_account_control=None
+            if self.user_account_control is None
+            else self.user_account_control.copy(),
+            service_principal_name=None
+            if self.service_principal_name is None
+            else self.service_principal_name.copy(),
+            account_expires=self.account_expires,
+            member_of=None if self.member_of is None else self.member_of.copy(),
+            last_logon_timestamp=self.last_logon_timestamp,
+            distinguished_name=self.distinguished_name,
+        )
+        computer = Computer(
+            fqdn=self.fqdn,
+            operating_system=self.operating_system,
+            user=user,
+        )
+        if (
+            user.user_account_control is not None
+            and UacCodes.SERVER_TRUST_ACCOUNT in user.user_account_control
+        ):
+            computer.status = ComputerStatus.DOMAIN_CONTROLLER
+        elif (
+            user.user_account_control is not None
+            and UacCodes.PARTIAL_SECRETS_ACCOUNT in user.user_account_control
+        ):
+            computer.status = ComputerStatus.READ_ONLY_DOMAIN_CONTROLLER
+        elif (
+            computer.operating_system is not None
+            and "server" in computer.operating_system.lower()
+        ):
+            computer.status = ComputerStatus.SERVER
+        elif computer.operating_system is not None:
+            computer.status = ComputerStatus.WORKSTATION
+        return computer
+
+    @staticmethod
+    def from_search_entry(
+        display: Display,
+        item: ldapasn1.SearchResultEntry,  # pyright: ignore [reportUnknownParameterType]
+    ) -> Optional["LdapResult"]:
+        if not isinstance(item, ldapasn1.SearchResultEntry):
+            return None
+
+        return_obj = LdapResult()
+        try:
+            for attribute in item["attributes"]:
+                match str(attribute["type"]):
+                    case "distinguishedName":
+                        return_obj.distinguished_name = (
+                            attribute["vals"][0].asOctets().decode("utf-8")
+                        )
+                    case "name":
+                        return_obj.name = (
+                            attribute["vals"][0].asOctets().decode("utf-8")
+                        )
+                    case "objectSid":
+                        return_obj.sid = format_sid(
+                            attribute["vals"][0].asOctets(),
+                        )
+                    case "member":
+                        return_obj.members = [
+                            i.asOctets().decode("utf-8") for i in attribute["vals"]
+                        ]
+                    case "sAMAccountName":
+                        return_obj.sam_account_name = (
+                            attribute["vals"][0].asOctets().decode("utf-8")
+                        )
+                    case "pwdLastSet":
+                        return_obj.pwd_last_set = parse_windows_time(
+                            int(
+                                attribute["vals"][0].asOctets().decode("utf-8"),
+                            )
+                        )
+                    case "mail":
+                        return_obj.mail = (
+                            attribute["vals"][0].asOctets().decode("utf-8")
+                        )
+                    case "userAccountControl":
+                        uac = int(attribute["vals"][0].asOctets().decode("utf-8"))
+                        return_obj.user_account_control = parse_uac(uac)
+                    case "servicePrincipalName":
+                        return_obj.service_principal_name = [
+                            i.asOctets().decode("utf-8") for i in attribute["vals"]
+                        ]
+                    case "accountExpires":
+                        return_obj.account_expires = parse_windows_time(
+                            int(
+                                attribute["vals"][0].asOctets().decode("utf-8"),
+                            )
+                        )
+                    case "memberOf":
+                        return_obj.member_of = [
+                            i.asOctets().decode("utf-8") for i in attribute["vals"]
+                        ]
+                    case "lastLogonTimestamp":
+                        return_obj.last_logon_timestamp = parse_windows_time(
+                            int(
+                                attribute["vals"][0].asOctets().decode("utf-8"),
+                            )
+                        )
+                    case "dNSHostName":
+                        return_obj.fqdn = (
+                            attribute["vals"][0].asOctets().decode("utf-8").lower()
+                        )
+                    case "operatingSystem":
+                        return_obj.operating_system = (
+                            attribute["vals"][0].asOctets().decode("utf-8")
+                        )
+                    case _:
+                        pass
+        except Exception as e:
+            if display.debug:
+                display.logger.exception("Skipping item, cannot process due to error")
+            else:
+                display.logger.warning(
+                    "Skipping item, cannot process due to error -> %s", e
+                )
+        else:
+            return return_obj
 
 
 class LdapQuery(Ldap):
@@ -30,290 +231,104 @@ class LdapQuery(Ldap):
         self.users = None
         self.computers = None
         self.groups = None
+        self.organisational_units = None
+
+        self.__current_sid = None
+        self.__current_organisational_unit = None
+
+    def __process_organisational_unit_members(
+        self,
+        item: ldapasn1.SearchResultEntry,  # pyright: ignore [reportUnknownParameterType]
+    ) -> None:
+        ldap_result = LdapResult.from_search_entry(self.display, item)
+        if ldap_result is None:
+            return
+        distinguished_name = ldap_result.distinguished_name
+        if distinguished_name is None:
+            return
+
+        if distinguished_name not in self.__current_organisational_unit.members:  # pyright: ignore[reportOptionalMemberAccess]
+            self.__current_organisational_unit.members.append(distinguished_name)  # pyright: ignore[reportOptionalMemberAccess]
+        self.display.progress.advance(self.display.progress.task_ids[0])
+
+    def __process_organisational_unit(self, item: ldapasn1.SearchResultEntry) -> None:  # pyright: ignore[reportUnknownParameterType]
+        ldap_result = LdapResult.from_search_entry(self.display, item)
+        if ldap_result is None:
+            return
+        ou = ldap_result.get_organisational_unit()
+        if ou.distinguished_name is None:
+            return
+
+        self.organisational_units[ou.distinguished_name] = (  # pyright: ignore [reportOptionalSubscript]
+            self.database.put_organisational_unit(ou)
+        )
+        self.display.progress.advance(self.display.progress.task_ids[0])
 
     def __process_group(self, item: ldapasn1.SearchResultEntry) -> None:  # pyright: ignore[reportUnknownParameterType]
-        if not isinstance(item, ldapasn1.SearchResultEntry):
+        ldap_result = LdapResult.from_search_entry(self.display, item)
+        if ldap_result is None:
             return
-        group = Group()
-        try:
-            for attribute in item["attributes"]:
-                if str(attribute["type"]) == "distinguishedName":
-                    group.distinguished_name = (
-                        attribute["vals"][0].asOctets().decode("utf-8")
-                    )
-                elif str(attribute["type"]) == "objectSid":
-                    group.sid = format_sid(
-                        attribute["vals"][0].asOctets(),
-                    )
-                elif str(attribute["type"]) == "member":
-                    group.members = [
-                        i.asOctets().decode("utf-8") for i in attribute["vals"]
-                    ]
-                elif str(attribute["type"]) == "sAMAccountName":
-                    group.sam_account_name = (
-                        attribute["vals"][0].asOctets().decode("utf-8")
-                    )
+        group = ldap_result.get_group()
+        if group.sid is None:
+            return
 
-            if group.sid is None:
-                return
-
-            self.groups[group.sid] = self.database.put_group(group)  # pyright: ignore[reportOptionalSubscript]
-
-            self.display.progress.advance(self.display.progress.task_ids[0])
-        except Exception as e:
-            if self.display.debug:
-                self.display.logger.exception(
-                    "Skipping item, cannot process due to error"
-                )
-            else:
-                self.display.logger.warning(
-                    "Skipping item, cannot process due to error -> %s", e
-                )
+        self.groups[group.sid] = self.database.put_group(group)  # pyright: ignore[reportOptionalSubscript]
+        self.display.progress.advance(self.display.progress.task_ids[0])
 
     def __process_admin_group(self, item: ldapasn1.SearchResultEntry) -> None:  # pyright: ignore[reportUnknownParameterType]
-        if not isinstance(item, ldapasn1.SearchResultEntry):
+        ldap_result = LdapResult.from_search_entry(self.display, item)
+        if ldap_result is None:
             return
-        group_dict = {}
-        try:
-            for attribute in item["attributes"]:
-                if str(attribute["type"]) == "distinguishedName":
-                    group_dict["distinguishedName"] = (
-                        attribute["vals"][0].asOctets().decode("utf-8")
-                    )
-                elif str(attribute["type"]) == "objectSid":
-                    group_dict["objectSid"] = format_sid(
-                        attribute["vals"][0].asOctets(),
-                    )
 
-            if (
-                ("distinguishedName" in group_dict)
-                and ("objectSid" in group_dict)
-                and group_dict["objectSid"] in self.admin_groups
-            ):
-                self.admin_groups[group_dict["objectSid"]]["distinguishedName"] = (
-                    group_dict["distinguishedName"]
-                )
-            self.display.progress.advance(self.display.progress.task_ids[0])
-        except Exception as e:
-            if self.display.debug:
-                self.display.logger.exception(
-                    "Skipping item, cannot process due to error"
-                )
-            else:
-                self.display.logger.warning(
-                    "Skipping item, cannot process due to error -> %s", e
-                )
+        if (
+            ldap_result.distinguished_name is not None
+            and ldap_result.sid is not None
+            and ldap_result.sid in self.admin_groups
+        ):
+            self.admin_groups[ldap_result.sid]["distinguishedName"] = (  # pyright: ignore[reportArgumentType]
+                ldap_result.distinguished_name
+            )
+        self.display.progress.advance(self.display.progress.task_ids[0])
 
     def __recurse_process_admin_group(self, item: ldapasn1.SearchResultEntry) -> None:  # pyright: ignore[reportUnknownParameterType]
-        if not isinstance(item, ldapasn1.SearchResultEntry):
+        ldap_result = LdapResult.from_search_entry(self.display, item)
+        if ldap_result is None:
             return
-        group_dict = {}
-        try:
-            for attribute in item["attributes"]:
-                if str(attribute["type"]) == "distinguishedName":
-                    group_dict["distinguishedName"] = (
-                        attribute["vals"][0].asOctets().decode("utf-8")
-                    )
-            if "distinguishedName" in group_dict:
-                self.admin_groups[self.__current_sid]["recurseMember"].add(
-                    group_dict["distinguishedName"]
-                )
-            self.display.progress.advance(self.display.progress.task_ids[1])
-        except Exception as e:
-            if self.display.debug:
-                self.display.logger.exception(
-                    "Skipping item, cannot process due to error"
-                )
-            else:
-                self.display.logger.warning(
-                    "Skipping item, cannot process due to error -> %s", e
-                )
+        distinguished_name = ldap_result.distinguished_name
+        if distinguished_name is not None:
+            self.admin_groups[self.__current_sid]["recurseMember"].add(  # pyright: ignore[reportArgumentType]
+                distinguished_name
+            )
+        self.display.progress.advance(self.display.progress.task_ids[1])
 
     def __process_user(self, item: ldapasn1.SearchResultEntry) -> None:  # pyright: ignore[reportUnknownParameterType]
-        if not isinstance(item, ldapasn1.SearchResultEntry):
+        ldap_result = LdapResult.from_search_entry(self.display, item)
+        if ldap_result is None:
             return
-        user = User()
-        try:
-            for attribute in item["attributes"]:
-                if str(attribute["type"]) == "sAMAccountName":
-                    user.sam_account_name = (
-                        attribute["vals"][0].asOctets().decode("utf-8")
-                    )
-                elif str(attribute["type"]) == "pwdLastSet":
-                    user.pwd_last_set = parse_windows_time(
-                        int(
-                            attribute["vals"][0].asOctets().decode("utf-8"),
-                        )
-                    )
-                elif str(attribute["type"]) == "mail":
-                    user.mail = attribute["vals"][0].asOctets().decode("utf-8")
-                elif str(attribute["type"]) == "objectSid":
-                    user.sid = format_sid(attribute["vals"][0].asOctets())
-                elif str(attribute["type"]) == "userAccountControl":
-                    uac = int(attribute["vals"][0].asOctets().decode("utf-8"))
-                    user.user_account_control = parse_uac(uac)
-                elif str(attribute["type"]) == "servicePrincipalName":
-                    user.service_principal_name = [
-                        i.asOctets().decode("utf-8") for i in attribute["vals"]
-                    ]
-                elif str(attribute["type"]) == "accountExpires":
-                    user.account_expires = parse_windows_time(
-                        int(
-                            attribute["vals"][0].asOctets().decode("utf-8"),
-                        )
-                    )
-                elif str(attribute["type"]) == "memberOf":
-                    user.member_of = [
-                        i.asOctets().decode("utf-8") for i in attribute["vals"]
-                    ]
-                elif str(attribute["type"]) == "lastLogonTimestamp":
-                    user.last_logon_timestamp = parse_windows_time(
-                        int(
-                            attribute["vals"][0].asOctets().decode("utf-8"),
-                        )
-                    )
-                elif str(attribute["type"]) == "distinguishedName":
-                    user.distinguished_name = (
-                        attribute["vals"][0].asOctets().decode("utf-8")
-                    )
+        user = ldap_result.get_user()
+        if user.sid is None:
+            return
 
-            if user.sid is None:
-                return
+        if user.distinguished_name is not None:
+            user.is_orivileged = False
+            for group in self.admin_groups.values():
+                if user.distinguished_name in group["recurseMember"]:
+                    user.is_privileged = True
+                    break
 
-            if user.distinguished_name is not None:
-                user.is_domain_admin = False
-                user.is_entreprise_admin = False
-                user.is_administrator = False
-                for sid, group in self.admin_groups.items():
-                    if user.distinguished_name in group["recurseMember"]:
-                        if sid.endswith("-512"):
-                            user.is_domain_admin = True
-                        elif sid.endswith("-519"):
-                            user.is_entreprise_admin = True
-                        elif sid == "S-1-5-32-544":
-                            user.is_administrator = True
-
-            self.users[user.sid] = self.database.put_user(user)  # pyright: ignore[reportOptionalSubscript]
-
-            self.display.progress.advance(self.display.progress.task_ids[0])
-        except Exception as e:
-            if self.display.debug:
-                self.display.logger.exception(
-                    "Skipping item, cannot process due to error"
-                )
-            else:
-                self.display.logger.warning(
-                    "Skipping item, cannot process due to error -> %s", e
-                )
+        self.users[user.sid] = self.database.put_user(user)  # pyright: ignore[reportOptionalSubscript]
+        self.display.progress.advance(self.display.progress.task_ids[0])
 
     def __process_computer(self, item: ldapasn1.SearchResultEntry) -> None:  # pyright: ignore[reportUnknownParameterType]
-        if not isinstance(item, ldapasn1.SearchResultEntry):
+        ldap_result = LdapResult.from_search_entry(self.display, item)
+        if ldap_result is None:
             return
-        user = User()
-        computer = Computer()
-        try:
-            for attribute in item["attributes"]:
-                if str(attribute["type"]) == "sAMAccountName":
-                    user.sam_account_name = (
-                        attribute["vals"][0].asOctets().decode("utf-8")
-                    )
-                elif str(attribute["type"]) == "pwdLastSet":
-                    user.pwd_last_set = parse_windows_time(
-                        int(
-                            attribute["vals"][0].asOctets().decode("utf-8"),
-                        )
-                    )
-                elif str(attribute["type"]) == "mail":
-                    user.mail = attribute["vals"][0].asOctets().decode("utf-8")
-                elif str(attribute["type"]) == "objectSid":
-                    user.sid = format_sid(attribute["vals"][0].asOctets())
-                elif str(attribute["type"]) == "userAccountControl":
-                    uac = int(attribute["vals"][0].asOctets().decode("utf-8"))
-                    user.user_account_control = parse_uac(uac)
-                elif str(attribute["type"]) == "servicePrincipalName":
-                    user.service_principal_name = [
-                        i.asOctets().decode("utf-8") for i in attribute["vals"]
-                    ]
-                elif str(attribute["type"]) == "accountExpires":
-                    user.account_expires = parse_windows_time(
-                        int(
-                            attribute["vals"][0].asOctets().decode("utf-8"),
-                        )
-                    )
-                elif str(attribute["type"]) == "memberOf":
-                    user.member_of = [
-                        i.asOctets().decode("utf-8") for i in attribute["vals"]
-                    ]
-                elif str(attribute["type"]) == "lastLogonTimestamp":
-                    user.last_logon_timestamp = parse_windows_time(
-                        int(
-                            attribute["vals"][0].asOctets().decode("utf-8"),
-                        )
-                    )
-                elif str(attribute["type"]) == "distinguishedName":
-                    user.distinguished_name = (
-                        attribute["vals"][0].asOctets().decode("utf-8")
-                    )
+        computer = ldap_result.get_computer()
+        if computer.fqdn is None:
+            return
 
-                elif str(attribute["type"]) == "dNSHostName":
-                    computer.fqdn = (
-                        attribute["vals"][0].asOctets().decode("utf-8").lower()
-                    )
-                elif str(attribute["type"]) == "operatingSystem":
-                    computer.operating_system = (
-                        attribute["vals"][0].asOctets().decode("utf-8")
-                    )
-
-            if user.sid is not None:
-                if user.distinguished_name is not None:
-                    user.is_domain_admin = False
-                    user.is_entreprise_admin = False
-                    user.is_administrator = False
-                    for sid, group in self.admin_groups.items():
-                        if user.distinguished_name in group["recurseMember"]:
-                            if sid.endswith("-512"):
-                                user.is_domain_admin = True
-                            elif sid.endswith("-519"):
-                                user.is_entreprise_admin = True
-                            elif sid == "S-1-5-32-544":
-                                user.is_administrator = True
-                computer.user = user
-            else:
-                computer.user = None
-
-            if computer.fqdn is None:
-                return
-
-            if (
-                user.user_account_control is not None
-                and UacCodes.SERVER_TRUST_ACCOUNT in user.user_account_control
-            ):
-                computer.status = ComputerStatus.DOMAIN_CONTROLLER
-            elif (
-                user.user_account_control is not None
-                and UacCodes.PARTIAL_SECRETS_ACCOUNT in user.user_account_control
-            ):
-                computer.status = ComputerStatus.READ_ONLY_DOMAIN_CONTROLLER
-            elif (
-                computer.operating_system is not None
-                and "server" in computer.operating_system.lower()
-            ):
-                computer.status = ComputerStatus.SERVER
-            elif computer.operating_system is not None:
-                computer.status = ComputerStatus.WORKSTATION
-
-            self.computers[computer.fqdn] = self.database.put_computer(computer)  # pyright: ignore[reportOptionalSubscript]
-
-            self.display.progress.advance(self.display.progress.task_ids[0])
-        except Exception as e:
-            if self.display.debug:
-                self.display.logger.exception(
-                    "Skipping item, cannot process due to error"
-                )
-            else:
-                self.display.logger.warning(
-                    "Skipping item, cannot process due to error -> %s", e
-                )
+        self.computers[computer.fqdn] = self.database.put_computer(computer)  # pyright: ignore[reportOptionalSubscript]
+        self.display.progress.advance(self.display.progress.task_ids[0])
 
     def __pull_admins(self) -> None:
         task = self.display.progress.add_task(
@@ -472,12 +487,70 @@ class LdapQuery(Ldap):
                     searchFilter=search_filter,
                     attributes=[
                         "sAMAccountName",
-                        "distinguishedName",
                         "objectSid",
+                        "distinguishedName",
                         "member",
                     ],
                     searchControls=[self.sc],
                     perRecordCallback=self.__process_group,
+                )
+        finally:
+            self.display.progress.remove_task(task)
+
+    def pull_organisational_units(self) -> None:
+        if self.connection is None:
+            self.init_connect()
+
+        self.organisational_units = {}
+        search_filter = "(objectClass=organizationalUnit)"
+        task = self.display.progress.add_task(
+            "[blue]Querying ldap organisational units[/blue]",
+            total=None,
+        )
+        try:
+            with self.display.progress:
+                self.display.logger.opsec(
+                    "[%s -> %s] Querying ldap organisational units",
+                    self.scheme.value.upper(),
+                    self.dc_values.ip,
+                )
+                self.connection.search(  # pyright: ignore [reportOptionalMemberAccess]
+                    searchFilter=search_filter,
+                    attributes=[
+                        "name",
+                        "distinguishedName",
+                    ],
+                    searchControls=[self.sc],
+                    perRecordCallback=self.__process_organisational_unit,
+                )
+        finally:
+            self.display.progress.remove_task(task)
+        task = self.display.progress.add_task(
+            "[blue]Querying ldap organisational units members[/blue]",
+            total=None,
+        )
+        try:
+            for ou in self.organisational_units.values():
+                self.__current_organisational_unit = ou
+                self.__current_organisational_unit.members = []
+                search_filter = f"(!(distinguishedName={ou.distinguished_name}))"
+                with self.display.progress:
+                    self.display.logger.opsec(
+                        "[%s -> %s] Querying ldap organisational units members",
+                        self.scheme.value.upper(),
+                        self.dc_values.ip,
+                    )
+                    self.connection.search(  # pyright: ignore [reportOptionalMemberAccess]
+                        searchFilter=search_filter,
+                        searchBase=ou.distinguished_name,
+                        attributes=[
+                            "distinguishedName",
+                        ],
+                        searchControls=[self.sc],
+                        perRecordCallback=self.__process_organisational_unit_members,
+                    )
+                self.database.put_organisational_unit(
+                    self.__current_organisational_unit
                 )
         finally:
             self.display.progress.remove_task(task)
@@ -494,11 +567,17 @@ class LdapQuery(Ldap):
 
         return self.computers  # pyright: ignore [reportReturnType]
 
-    def get_groups(self) -> dict[str, "Group"]:
+    def get_groups(self) -> dict[str, Group]:
         if self.groups is None:
             self.pull_groups()
 
         return self.groups  # pyright: ignore [reportReturnType]
+
+    def get_organisational_units(self) -> dict[str, OrganisationalUnit]:
+        if self.organisational_units is None:
+            self.pull_organisational_units()
+
+        return self.organisational_units  # pyright: ignore [reportReturnType]
 
     def display_users(self) -> None:
         if self.users is None:
@@ -517,3 +596,9 @@ class LdapQuery(Ldap):
             self.pull_groups()
 
         Group.print_tab(self.display, self.groups.values())  # pyright: ignore [reportOptionalMemberAccess]
+
+    def display_organisational_units(self) -> None:
+        if self.organisational_units is None:
+            self.pull_organisational_units()
+
+        OrganisationalUnit.print_tab(self.display, self.organisational_units.values())  # pyright: ignore [reportOptionalMemberAccess]

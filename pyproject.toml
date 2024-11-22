@@ -4,7 +4,7 @@ name = "yanimt"
 
 [tool.poetry]
 name = "yanimt"
-version = "0.0.3"
+version = "0.0.4"
 description = "Yet another impacket tool"
 authors = ["Headorteil"]
 homepage = "https://github.com/Headorteil/yanimt"
