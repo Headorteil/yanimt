@@ -1,3 +1,3 @@
 #! /bin/bash
 
-pyright --createstub impacket
+poetry run pyright --createstub impacket

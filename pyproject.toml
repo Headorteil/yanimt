@@ -4,7 +4,7 @@ name = "yanimt"
 
 [tool.poetry]
 name = "yanimt"
-version = "0.0.4"
+version = "0.0.5"
 description = "Yet another impacket tool"
 authors = ["Headorteil"]
 homepage = "https://github.com/Headorteil/yanimt"
@@ -19,23 +19,24 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.11"
-impacket = "^0.11.0"
-typer = "^0.12.3"
-dnspython = "^2.7.0"
-textual = "^0.86.2"
-sqlalchemy = "^2.0.36"
-pyyaml = "^6.0.2"
+impacket = "^0.12.0"
+dnspython = "^2.8.0"
+textual = "^6.2.1"
+sqlalchemy = "^2.0.43"
+pyyaml = "^6.0.3"
+rich = "^14.1.0"
+typer = "^0.19.2"
 
 [tool.poetry.scripts]
 yanimt = 'yanimt.cli:app'
 
 [tool.poetry.group.dev.dependencies]
-ruff = "^0.6.4"
-pre-commit = "^4.0.1"
+ruff = "^0.13.3"
+pre-commit = "^4.3.0"
 textual-dev = "^1.7.0"
-types-pyyaml = "^6.0.12.20240917"
-types-ldap3 = "^2.9.13.20240205"
-pyright = "^1.1.389"
+types-pyyaml = "^6.0.12.20250915"
+types-ldap3 = "^2.9.13.20250622"
+pyright = "^1.1.406"
 
 [build-system]
 requires = ["poetry-core"]
